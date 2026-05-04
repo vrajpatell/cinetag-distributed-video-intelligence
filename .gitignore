@@ -1,0 +1,10 @@
+.env.gcp
+*.tfstate
+*.tfstate.*
+.terraform/
+*.auto.tfvars
+service-account*.json
+sample-videos/
+
+__pycache__/
+*.pyc

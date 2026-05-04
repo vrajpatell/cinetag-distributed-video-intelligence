@@ -32,3 +32,6 @@ W --> OBJ
 - `docs/interview-talking-points.md`
 - `docs/deploy-render.md`
 - `docs/deploy-gcp-cloud-run.md`
+
+## Deploying to Google Cloud Platform
+See `docs/deploy-gcp.md` for full Terraform and gcloud deployment steps.

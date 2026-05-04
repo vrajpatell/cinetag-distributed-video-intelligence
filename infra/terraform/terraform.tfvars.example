@@ -1,0 +1,4 @@
+project_id = "cinetag-distributed-video"
+region = "us-central1"
+artifact_repo = "cinetag-containers"
+bucket_name = "cinetag-distributed-video-media"
