@@ -4,11 +4,25 @@ resource "google_cloud_run_v2_service" "worker" {
   ingress  = "INGRESS_TRAFFIC_INTERNAL_ONLY"
 
   template {
+    timeout = "3600s"
+
     service_account = google_service_account.worker.email
+
+    scaling {
+      min_instance_count = 1
+    }
 
     containers {
       image   = var.worker_image
-      command = ["python", "-m", "app.workers.worker_main"]
+      command = ["python", "-m", "app.workers.worker_service_main"]
+
+      resources {
+        cpu_idle = false
+        limits = {
+          cpu    = "1"
+          memory = "1Gi"
+        }
+      }
 
       env {
         name  = "APP_ENV"
