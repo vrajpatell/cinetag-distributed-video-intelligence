@@ -1,6 +1,10 @@
 # Deploying CineTag to GCP
 
 ## Quickstart
+
+## Important
+Build and push the Artifact Registry container images (`api_image`, `worker_image`, and `frontend_image`) before running `terraform apply`, or Cloud Run service/job creation will fail due to missing images.
+
 ```bash
 gcloud config set project cinetag-distributed-video
 gcloud config set run/region us-central1
