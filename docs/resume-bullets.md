@@ -1,0 +1,3 @@
+- Built a distributed video intelligence platform using FastAPI, Celery, Redis, PostgreSQL, and S3-compatible object storage.
+- Designed an idempotent multi-stage processing pipeline with retries, stage tracking, audit logs, and Prometheus metrics.
+- Implemented LLM-driven tag generation with strict schema validation, malformed-output repair, and deterministic mock providers.
