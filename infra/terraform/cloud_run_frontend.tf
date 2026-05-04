@@ -1,0 +1,1 @@
+resource "google_cloud_run_v2_service" "frontend" { name="cinetag-frontend" location=var.region ingress="INGRESS_TRAFFIC_ALL" template { containers { image="${var.region}-docker.pkg.dev/${var.project_id}/${var.artifact_repo}/cinetag-frontend:latest" env {name="VITE_API_BASE_URL" value=google_cloud_run_v2_service.api.uri} ports {container_port=8080} } } }

@@ -1,0 +1,2 @@
+locals { apis=["run.googleapis.com","sqladmin.googleapis.com","redis.googleapis.com","storage.googleapis.com","artifactregistry.googleapis.com","secretmanager.googleapis.com","cloudbuild.googleapis.com","logging.googleapis.com","monitoring.googleapis.com","iam.googleapis.com","compute.googleapis.com","servicenetworking.googleapis.com"] }
+resource "google_project_service" "apis" { for_each=toset(local.apis) project=var.project_id service=each.value }
