@@ -1,0 +1,6 @@
+import { API_BASE_URL, apiFetch } from './api';
+export async function uploadVideoDirectToGcs({file,title,onProgress}:{file:File;title?:string;onProgress?:(p:number,speed:number)=>void}){
+  const init=await apiFetch('/api/uploads/init',{method:'POST',body:JSON.stringify({filename:file.name,content_type:file.type,size_bytes:file.size,title})}).catch((e)=>{throw new Error(`Could not prepare upload: ${e.message}`)});
+  await new Promise<void>((resolve,reject)=>{const xhr=new XMLHttpRequest(); const started=Date.now(); xhr.open('PUT',init.upload_url); xhr.setRequestHeader('Content-Type',file.type); xhr.upload.onprogress=(e)=>{if(e.lengthComputable&&onProgress){const p=(e.loaded/e.total)*100; const speed=e.loaded/Math.max((Date.now()-started)/1000,1); onProgress(p,speed);}}; xhr.onload=()=> xhr.status>=200&&xhr.status<300?resolve():reject(new Error(`Cloud Storage upload failed: ${xhr.status}`)); xhr.onerror=()=>reject(new Error('Could not upload video to Cloud Storage')); xhr.send(file);});
+  return apiFetch('/api/uploads/complete',{method:'POST',body:JSON.stringify({video_id:init.video_id,storage_key:init.storage_key,title})}).catch((e)=>{throw new Error(`Video uploaded but processing job could not be created: ${e.message}`)});
+}

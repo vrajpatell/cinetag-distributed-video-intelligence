@@ -1,0 +1,1 @@
+export default function Home(){return <main className='p-6'><section className='panel p-10'><h1 className='text-5xl font-bold'>CineTag Pipeline</h1><p className='text-zinc-300 mt-3'>Distributed video intelligence for content tagging, semantic search, and AI-powered media workflows.</p></section></main>}

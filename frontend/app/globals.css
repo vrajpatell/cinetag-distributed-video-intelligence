@@ -1,0 +1,2 @@
+@tailwind base;@tailwind components;@tailwind utilities;
+body{@apply bg-black text-white;} .panel{@apply bg-zinc-900/70 border border-zinc-800 rounded-xl;}

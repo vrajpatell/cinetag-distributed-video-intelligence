@@ -35,3 +35,28 @@ W --> OBJ
 
 ## Deploying to Google Cloud Platform
 See `docs/deploy-gcp.md` for full Terraform and gcloud deployment steps.
+
+## GCP Verification Flow
+1. Check API:
+```bash
+curl $API_URL/health
+curl $API_URL/ready
+curl $API_URL/api/videos
+```
+2. Check signed upload init:
+```bash
+curl -X POST $API_URL/api/uploads/init \
+  -H "Content-Type: application/json" \
+  -d '{"filename":"test.mp4","content_type":"video/mp4","size_bytes":12345,"title":"test"}'
+```
+3. Check frontend: open `$FRONTEND_URL`.
+4. Check GCS:
+```bash
+gcloud storage ls gs://cinetag-distributed-video-media/originals/
+```
+5. Check worker:
+```bash
+gcloud run services logs read cinetag-worker --region us-central1 --limit 100
+```
+
+Signed URL generation on Cloud Run may require `roles/iam.serviceAccountTokenCreator`.
