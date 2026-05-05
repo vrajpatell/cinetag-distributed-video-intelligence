@@ -1,0 +1,44 @@
+.git
+.github
+.gitignore
+.gcloudignore
+
+# Local envs and secrets
+.env
+.env.*
+.env.gcp
+.env.gcp.*
+service-account*.json
+
+# Frontend build artifacts
+frontend/node_modules
+frontend/.next
+frontend/dist
+frontend/out
+frontend/coverage
+
+# Backend caches
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/.venv
+**/venv
+
+# Terraform / infra state
+*.tfstate
+*.tfstate.*
+.terraform/
+*.auto.tfvars
+
+# Sample / large files
+sample-videos/
+*.mp4
+*.mov
+*.mkv
+
+# Editor / OS
+.DS_Store
+.idea
+.vscode

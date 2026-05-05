@@ -7,6 +7,7 @@ from app.api import (
     routes_health,
     routes_jobs,
     routes_metrics,
+    routes_review,
     routes_search,
     routes_tags,
     routes_upload,
@@ -32,4 +33,5 @@ app.include_router(routes_jobs.router, prefix='/api')
 app.include_router(routes_videos.router, prefix='/api')
 app.include_router(routes_tags.router, prefix='/api')
 app.include_router(routes_search.router, prefix='/api')
+app.include_router(routes_review.router, prefix='/api')
 app.include_router(routes_metrics.router)
