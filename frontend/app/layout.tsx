@@ -1,0 +1,2 @@
+import './globals.css';import TopNav from '@/components/TopNav';
+export default function RootLayout({children}:{children:React.ReactNode}){const api=process.env.NEXT_PUBLIC_API_BASE_URL||'unset';return <html><body><TopNav/>{children}<footer className='p-4 text-xs text-zinc-400 border-t border-zinc-800 mt-8'>env: {process.env.NODE_ENV} · api: {api} · build: {process.env.NEXT_PUBLIC_BUILD_VERSION||'dev'}</footer></body></html>}

@@ -1,0 +1,1 @@
+import Link from 'next/link'; export default function TopNav(){return <nav className='flex gap-4 p-4 bg-black/90 sticky top-0'><Link href='/' className='text-cinetagRed font-bold'>CineTag</Link><Link href='/upload'>Upload</Link><Link href='/jobs'>Jobs</Link><Link href='/review'>Review</Link><Link href='/search'>Search</Link></nav>}

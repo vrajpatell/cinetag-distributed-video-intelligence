@@ -1,14 +1,17 @@
-FROM node:20-alpine AS build
+FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN if [ -f package-lock.json ]; then npm ci; else npm install; fi
 COPY . .
-ARG VITE_API_BASE_URL=http://localhost:8000
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ARG NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 RUN npm run build
 
-FROM nginx:1.27-alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
 EXPOSE 8080
-HEALTHCHECK CMD wget -qO- http://127.0.0.1:8080/ || exit 1
+CMD ["sh","-c","HOSTNAME=0.0.0.0 PORT=8080 node server.js"]

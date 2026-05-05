@@ -29,11 +29,27 @@ class GCSStore:
     def generate_signed_url(self, object_name: str, expiration_seconds: int = 3600, method: str = 'GET') -> str:
         return self.bucket.blob(object_name).generate_signed_url(expiration=timedelta(seconds=expiration_seconds), method=method)
 
+    def generate_signed_upload_url(self, storage_key: str, content_type: str, expires_minutes: int = 15) -> str:
+        blob = self.bucket.blob(storage_key)
+        return blob.generate_signed_url(
+            version='v4',
+            expiration=timedelta(minutes=expires_minutes),
+            method='PUT',
+            content_type=content_type,
+        )
+
     def delete_object(self, object_name: str) -> None:
         self.bucket.blob(object_name).delete()
 
     def object_exists(self, object_name: str) -> bool:
         return self.bucket.blob(object_name).exists()
+
+    def get_object_metadata(self, object_name: str) -> dict:
+        blob = self.bucket.blob(object_name)
+        if not blob.exists():
+            return {}
+        blob.reload()
+        return {'size': blob.size, 'content_type': blob.content_type, 'updated': blob.updated.isoformat() if blob.updated else None}
 
     def get_public_or_signed_url(self, object_name: str, use_signed_url: bool = True, expiration_seconds: int = 3600) -> str:
         if use_signed_url:
