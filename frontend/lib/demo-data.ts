@@ -467,6 +467,7 @@ export const DEMO_SEARCH_RESULTS: SearchResult[] = [
     duration_seconds: 5 * 60 + 42,
     genres: ['Crime', 'Thriller'],
     moods: ['Suspenseful'],
+    status: 'processing',
     isDemo: true,
   },
   {
@@ -483,6 +484,7 @@ export const DEMO_SEARCH_RESULTS: SearchResult[] = [
     duration_seconds: 4 * 60 + 18,
     genres: ['Action', 'Thriller'],
     moods: ['Tense'],
+    status: 'review_ready',
     isDemo: true,
   },
   {
@@ -498,6 +500,7 @@ export const DEMO_SEARCH_RESULTS: SearchResult[] = [
     duration_seconds: 1 * 60 + 48,
     genres: ['Sci-Fi'],
     moods: ['Ominous'],
+    status: 'review_ready',
     isDemo: true,
   },
 ];

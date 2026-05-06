@@ -8,12 +8,28 @@ import type {
 const RAW_API = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? '';
 export const API_BASE_URL: string = RAW_API.replace(/\/+$/, '');
 
-if (
-  typeof window !== 'undefined' &&
-  process.env.NODE_ENV === 'production' &&
-  !API_BASE_URL
-) {
-  console.warn('[CineTag] NEXT_PUBLIC_API_BASE_URL is not set in production.');
+const IS_PROD = process.env.NODE_ENV === 'production';
+const IS_BROWSER = typeof window !== 'undefined';
+
+let _warnedNoApiBase = false;
+function warnNoApiBase(context: string) {
+  if (_warnedNoApiBase) return;
+  _warnedNoApiBase = true;
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[CineTag] NEXT_PUBLIC_API_BASE_URL is not set${context ? ` (${context})` : ''}.`,
+  );
+}
+
+if (IS_BROWSER && IS_PROD && !API_BASE_URL) {
+  // Spec: "Throw clear error if missing in production."
+  // We throw on the client at module load so misconfiguration is loud and
+  // fails fast — before any user data is sent over a relative URL that
+  // would otherwise hit the frontend's own origin.
+  throw new Error(
+    '[CineTag] NEXT_PUBLIC_API_BASE_URL is required in production. ' +
+      'Pass it as a build arg to the frontend Docker image.',
+  );
 }
 
 export class ApiError extends Error {
@@ -32,6 +48,7 @@ export class ApiError extends Error {
 function buildUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
   if (!API_BASE_URL) {
+    warnNoApiBase(IS_BROWSER ? 'browser' : 'server');
     return path.startsWith('/') ? path : `/${path}`;
   }
   const p = path.startsWith('/') ? path : `/${path}`;
@@ -79,9 +96,21 @@ export async function apiFetch<T = unknown>(path: string, init?: RequestInit): P
 }
 
 export async function safeFetch<T>(path: string, fallback: T, init?: RequestInit): Promise<T> {
+  // Skip the fetch entirely when no base URL is set on the server: a relative
+  // URL has no host in Node, so fetch would always throw and we'd burn time
+  // on every SSR request. Surfaces as a single warning per process.
+  if (!API_BASE_URL && !IS_BROWSER) {
+    warnNoApiBase(`server fallback for ${path}`);
+    return fallback;
+  }
   try {
     return await apiFetch<T>(path, init);
-  } catch {
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.warn(
+      `[CineTag] safeFetch fallback for ${path}:`,
+      err instanceof Error ? err.message : err,
+    );
     return fallback;
   }
 }
@@ -167,14 +196,10 @@ export async function searchVideos(input: SearchInput): Promise<SearchResult[]> 
 }
 
 export async function getReviewItems(): Promise<ReviewItem[]> {
-  // No explicit /api/review endpoint exists in backend; we synthesize one by
-  // pulling tags-with-pending-review across videos. If that endpoint isn't
-  // available, callers should fall back to demo data.
-  try {
-    return await apiFetch<ReviewItem[]>('/api/review');
-  } catch {
-    return [];
-  }
+  // Lets callers distinguish between "API up, queue empty" (returns []) and
+  // "API unreachable" (throws ApiError). The review page surfaces the latter
+  // with a soft warning while still rendering demo data.
+  return apiFetch<ReviewItem[]>('/api/review');
 }
 
 export async function patchTag(tagId: number | string, body: { status?: string; tag_value?: string }) {

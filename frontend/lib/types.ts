@@ -105,6 +105,7 @@ export interface SearchResult {
   duration_seconds?: number;
   genres?: string[];
   moods?: string[];
+  status?: VideoStatus | string;
   isDemo?: boolean;
 }
 
