@@ -3,17 +3,28 @@
 import { useEffect, useMemo, useState } from 'react';
 import ReviewTagCard from '@/components/ReviewTagCard';
 import EmptyState from '@/components/EmptyState';
+import ErrorToast, { type ErrorDetail } from '@/components/ErrorToast';
 import { ApiError, getReviewItems, patchTag } from '@/lib/api';
 import { DEMO_REVIEW_ITEMS } from '@/lib/demo-data';
 import type { ReviewItem } from '@/lib/types';
 
+type Decision = 'approved' | 'rejected' | 'edited';
+type DecisionState = Decision | 'pending';
+
+const DECISION_TO_TAG_STATUS: Record<Decision, 'approved' | 'rejected'> = {
+  approved: 'approved',
+  rejected: 'rejected',
+  edited: 'approved',
+};
+
 export default function ReviewPage() {
   const [items, setItems] = useState<ReviewItem[] | null>(null);
   const [usedDemo, setUsedDemo] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<ErrorDetail | null>(null);
   const [filterType, setFilterType] = useState<string>('all');
   const [filterSource, setFilterSource] = useState<string>('all');
-  const [decisions, setDecisions] = useState<Record<string, 'approved' | 'rejected' | 'edited' | 'pending'>>({});
+  const [decisions, setDecisions] = useState<Record<string, DecisionState>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -32,7 +43,7 @@ export default function ReviewPage() {
         if (cancelled) return;
         setItems(DEMO_REVIEW_ITEMS);
         setUsedDemo(true);
-        setError(err instanceof ApiError ? err.message : 'Could not reach review API.');
+        setLoadError(err instanceof ApiError ? err.message : 'Could not reach review API.');
       }
     })();
     return () => {
@@ -49,16 +60,40 @@ export default function ReviewPage() {
     });
   }, [items, filterType, filterSource]);
 
-  const onDecision = async (id: ReviewItem['id'], decision: 'approved' | 'rejected' | 'edited' | 'pending', value?: string) => {
+  const onDecision = async (
+    id: ReviewItem['id'],
+    decision: Decision,
+    value?: string,
+  ) => {
     setDecisions((p) => ({ ...p, [String(id)]: decision }));
-    if (typeof id === 'number') {
-      try {
-        await patchTag(id, {
-          status: decision === 'edited' ? 'approved' : decision,
-          tag_value: value,
+    // Demo IDs (strings, prefixed `rv-`) live only in the UI and never hit the API.
+    if (typeof id !== 'number') return;
+    try {
+      await patchTag(id, {
+        status: DECISION_TO_TAG_STATUS[decision],
+        tag_value: decision === 'edited' ? value : undefined,
+      });
+      setActionError(null);
+    } catch (err) {
+      // Roll the optimistic decision back so the UI stays honest.
+      setDecisions((p) => {
+        const next = { ...p };
+        delete next[String(id)];
+        return next;
+      });
+      if (err instanceof ApiError) {
+        setActionError({
+          title: 'Could not record review decision',
+          message: `Tag #${id}: ${err.message}`,
+          endpoint: err.endpoint,
+          status: err.status,
+          hint: 'Try again, or check that PATCH /api/tags/:id is reachable.',
         });
-      } catch {
-        // demo-friendly: silently swallow if API unavailable
+      } else {
+        setActionError({
+          title: 'Could not record review decision',
+          message: err instanceof Error ? err.message : 'Unknown error',
+        });
       }
     }
   };
@@ -102,11 +137,14 @@ export default function ReviewPage() {
         </div>
       </header>
 
-      {error ? (
+      {loadError ? (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-200">
-          {error}
+          {loadError}
         </div>
       ) : null}
+
+      <ErrorToast error={actionError} onDismiss={() => setActionError(null)} />
+
 
       <div className="panel flex flex-wrap items-center gap-3 p-3">
         <FilterSelect label="Tag type" value={filterType} onChange={setFilterType} options={[

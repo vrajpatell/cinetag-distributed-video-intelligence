@@ -12,7 +12,6 @@ type Filters = {
   mood: string;
   status: string;
   minConfidence: number;
-  stage: string;
 };
 
 const DEFAULT_FILTERS: Filters = {
@@ -20,7 +19,6 @@ const DEFAULT_FILTERS: Filters = {
   mood: '',
   status: '',
   minConfidence: 0,
-  stage: '',
 };
 
 export default function SearchExperience({ initialQuery = '' }: { initialQuery?: string }) {
@@ -33,9 +31,24 @@ export default function SearchExperience({ initialQuery = '' }: { initialQuery?:
 
   const filteredResults = useMemo(() => {
     return results.filter((r) => {
-      if (filters.genre && !r.genres?.some((g) => g.toLowerCase() === filters.genre.toLowerCase())) return false;
-      if (filters.mood && !r.moods?.some((m) => m.toLowerCase() === filters.mood.toLowerCase())) return false;
-      if (filters.minConfidence && r.score < filters.minConfidence) return false;
+      if (
+        filters.genre &&
+        !r.genres?.some((g) => g.toLowerCase() === filters.genre.toLowerCase())
+      ) {
+        return false;
+      }
+      if (
+        filters.mood &&
+        !r.moods?.some((m) => m.toLowerCase() === filters.mood.toLowerCase())
+      ) {
+        return false;
+      }
+      if (filters.status && String(r.status ?? '').toLowerCase() !== filters.status.toLowerCase()) {
+        return false;
+      }
+      if (filters.minConfidence > 0 && r.score < filters.minConfidence) {
+        return false;
+      }
       return true;
     });
   }, [results, filters]);
@@ -198,20 +211,7 @@ function FilterPanel({
           <option value="review_ready">Review ready</option>
           <option value="published">Published</option>
           <option value="processing">Processing</option>
-        </select>
-      </Field>
-      <Field label="Stage">
-        <select
-          value={filters.stage}
-          onChange={(e) => onChange({ ...filters, stage: e.target.value })}
-          className="select-style"
-        >
-          <option value="">Any</option>
-          <option value="metadata_extraction">Metadata</option>
-          <option value="frame_sampling">Frame sampling</option>
-          <option value="llm_tagging">LLM tagging</option>
-          <option value="embedding">Embedding</option>
-          <option value="completed">Completed</option>
+          <option value="uploaded">Uploaded</option>
         </select>
       </Field>
       <Field label={`Min confidence: ${filters.minConfidence.toFixed(2)}`}>

@@ -4,22 +4,23 @@ import { useState } from 'react';
 import type { ReviewItem } from '@/lib/types';
 import { formatRelativeTime } from '@/lib/format';
 
-type Decision = 'pending' | 'approved' | 'rejected' | 'edited';
+export type ReviewDecision = 'approved' | 'rejected' | 'edited';
+type LocalDecisionState = ReviewDecision | 'pending';
 
 export default function ReviewTagCard({
   item,
   onDecision,
 }: {
   item: ReviewItem;
-  onDecision?: (id: ReviewItem['id'], decision: Decision, value?: string) => void;
+  onDecision?: (id: ReviewItem['id'], decision: ReviewDecision, value?: string) => void;
 }) {
-  const [decision, setDecision] = useState<Decision>(
+  const [decision, setDecision] = useState<LocalDecisionState>(
     item.status === 'approved' ? 'approved' : item.status === 'rejected' ? 'rejected' : 'pending'
   );
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(item.tag_value);
 
-  const apply = (d: Decision, v?: string) => {
+  const apply = (d: ReviewDecision, v?: string) => {
     setDecision(d);
     onDecision?.(item.id, d, v);
   };
