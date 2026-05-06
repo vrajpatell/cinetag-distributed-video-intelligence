@@ -1,0 +1,18 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - --no-cache
+      - -t
+      - us-central1-docker.pkg.dev/cinetag-distributed-video/cinetag-containers/cinetag-frontend:latest
+      - --build-arg
+      - NEXT_PUBLIC_API_BASE_URL=https://cinetag-api-vaadli5ipq-uc.a.run.app
+      - ./frontend
+
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - us-central1-docker.pkg.dev/cinetag-distributed-video/cinetag-containers/cinetag-frontend:latest
+
+images:
+  - us-central1-docker.pkg.dev/cinetag-distributed-video/cinetag-containers/cinetag-frontend:latest
