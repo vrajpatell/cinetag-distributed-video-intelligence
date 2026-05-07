@@ -77,7 +77,19 @@ export interface JobSummary {
   completed_at?: string;
   created_at?: string;
   updated_at?: string;
+  stage_runs?: ProcessingStageRun[];
   isDemo?: boolean;
+}
+
+export interface ProcessingStageRun {
+  id: number | string;
+  job_id: number | string;
+  stage_name: ProcessingStage | string;
+  status: JobStatus | string;
+  started_at?: string;
+  completed_at?: string;
+  duration_ms?: number;
+  error_message?: string;
 }
 
 export interface ReviewItem {

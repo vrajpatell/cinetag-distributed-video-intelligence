@@ -35,7 +35,12 @@ class Settings(BaseSettings):
 
     llm_provider: str = 'mock'
     embedding_provider: str = 'mock'
+    transcription_provider: str = 'mock'
     openai_api_key: str | None = None
+    openai_llm_model: str = 'gpt-4o-mini'
+    openai_embedding_model: str = 'text-embedding-3-small'
+    openai_transcription_model: str = 'whisper-1'
+    scene_detection_threshold: float = 0.35
 
     secret_manager_enabled: bool = False
     log_level: str = 'INFO'

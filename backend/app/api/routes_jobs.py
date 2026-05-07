@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
-from app.db.models import ProcessingJob
+from app.db.models import ProcessingJob, ProcessingStageRun, VideoAsset
 from app.db.session import get_db
 from app.workers.tasks import run_pipeline
 
@@ -13,9 +14,50 @@ router = APIRouter(prefix='/jobs')
 logger = logging.getLogger(__name__)
 
 
+def _iso(value):
+    return value.isoformat() if value else None
+
+
+def _serialize_stage(run: ProcessingStageRun) -> dict[str, Any]:
+    return {
+        'id': run.id,
+        'job_id': run.job_id,
+        'stage_name': run.stage_name,
+        'status': run.status,
+        'started_at': _iso(run.started_at),
+        'completed_at': _iso(run.completed_at),
+        'duration_ms': run.duration_ms,
+        'error_message': run.error_message,
+    }
+
+
+def _serialize_job(job: ProcessingJob, db: Session) -> dict[str, Any]:
+    video = db.get(VideoAsset, job.video_id)
+    runs = (
+        db.query(ProcessingStageRun)
+        .filter_by(job_id=job.id)
+        .order_by(ProcessingStageRun.id.asc())
+        .all()
+    )
+    return {
+        'id': job.id,
+        'video_id': job.video_id,
+        'video_title': video.title if video else None,
+        'status': job.status,
+        'current_stage': job.current_stage,
+        'error_message': job.error_message,
+        'retry_count': job.retry_count,
+        'started_at': _iso(job.started_at),
+        'completed_at': _iso(job.completed_at),
+        'created_at': _iso(job.created_at),
+        'updated_at': _iso(job.updated_at),
+        'stage_runs': [_serialize_stage(run) for run in runs],
+    }
+
+
 @router.get('')
 def list_jobs(db: Session = Depends(get_db)):
-    return db.query(ProcessingJob).all()
+    return [_serialize_job(job, db) for job in db.query(ProcessingJob).all()]
 
 
 @router.get('/{job_id}')
@@ -23,7 +65,21 @@ def get_job(job_id: int, db: Session = Depends(get_db)):
     job = db.get(ProcessingJob, job_id)
     if not job:
         raise HTTPException(status_code=404, detail='Job not found')
-    return job
+    return _serialize_job(job, db)
+
+
+@router.get('/{job_id}/stages')
+def get_job_stages(job_id: int, db: Session = Depends(get_db)):
+    job = db.get(ProcessingJob, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail='Job not found')
+    runs = (
+        db.query(ProcessingStageRun)
+        .filter_by(job_id=job_id)
+        .order_by(ProcessingStageRun.id.asc())
+        .all()
+    )
+    return [_serialize_stage(run) for run in runs]
 
 
 @router.post('/{job_id}/retry')
@@ -33,6 +89,8 @@ def retry_job(job_id: int, db: Session = Depends(get_db)):
     Behavior:
     - Increments ``retry_count`` and resets ``status='queued'`` so the Jobs UI
       reflects the requeue immediately.
+    - Preserves ``current_stage`` when possible, allowing the worker to resume
+      from the failed/partial stage instead of replaying all prior outputs.
     - Clears the prior ``error_message`` so the operator sees a clean slate.
     - Tolerates a broker outage: if Celery cannot enqueue, the row stays in
       ``queued`` and we surface HTTP 503 instead of leaking a 500. The retry
@@ -43,11 +101,12 @@ def retry_job(job_id: int, db: Session = Depends(get_db)):
     if not job:
         raise HTTPException(status_code=404, detail='Job not found')
 
+    resume_stage = job.current_stage or 'metadata_extraction'
     job.retry_count = (job.retry_count or 0) + 1
     job.status = 'queued'
-    job.current_stage = 'queued'
+    job.current_stage = resume_stage
     job.error_message = None
-    job.started_at = None
+    job.started_at = job.started_at
     job.completed_at = None
     db.commit()
     db.refresh(job)

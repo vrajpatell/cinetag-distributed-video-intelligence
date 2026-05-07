@@ -6,6 +6,7 @@ export default function JobTimeline({ job }: { job: JobSummary }) {
   const activeIdx = PIPELINE_STAGES.findIndex((s) => s.key === job.current_stage);
   const isFailed = job.status === 'failed';
   const isCompleted = job.status === 'completed';
+  const stageRuns = job.stage_runs || [];
   const events = [
     { label: 'created', value: job.created_at },
     { label: 'started', value: job.started_at },
@@ -32,8 +33,16 @@ export default function JobTimeline({ job }: { job: JobSummary }) {
 
       <ol className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-9">
         {PIPELINE_STAGES.map((s, i) => {
-          const state =
-            isFailed && i === activeIdx
+          const run = [...stageRuns].reverse().find((r) => r.stage_name === s.key);
+          const state = run?.status
+            ? run.status === 'failed'
+              ? 'failed'
+              : run.status === 'completed'
+                ? 'done'
+                : run.status === 'running'
+                  ? 'active'
+                  : 'pending'
+            : isFailed && i === activeIdx
               ? 'failed'
               : isCompleted
                 ? 'done'
@@ -59,6 +68,16 @@ export default function JobTimeline({ job }: { job: JobSummary }) {
                 <span className="text-[9.5px] uppercase tracking-wider text-white/40">{String(i + 1).padStart(2, '0')}</span>
               </div>
               <div className="mt-0.5 text-[11.5px] font-semibold text-white/90">{s.label}</div>
+              {run?.duration_ms != null ? (
+                <div className="mt-1 font-mono text-[10px] text-white/45">
+                  {(run.duration_ms / 1000).toFixed(2)}s
+                </div>
+              ) : null}
+              {run?.error_message ? (
+                <div className="mt-1 line-clamp-2 text-[10px] text-rose-200">
+                  {run.error_message}
+                </div>
+              ) : null}
             </li>
           );
         })}

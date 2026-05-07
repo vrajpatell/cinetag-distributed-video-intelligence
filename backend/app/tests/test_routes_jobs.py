@@ -64,7 +64,7 @@ def test_retry_job_increments_count_and_resets_status(client, db_session):
     refreshed = db_session.get(ProcessingJob, job.id)
     assert refreshed is not None
     assert refreshed.status == "queued"
-    assert refreshed.current_stage == "queued"
+    assert refreshed.current_stage == "frame_sampling"
     assert refreshed.error_message is None
     assert refreshed.retry_count == 2
     assert refreshed.started_at is None
@@ -90,6 +90,7 @@ def test_retry_job_returns_503_when_broker_offline(client, db_session):
     refreshed = db_session.get(ProcessingJob, job.id)
     assert refreshed is not None
     assert refreshed.status == "queued"
+    assert refreshed.current_stage == "frame_sampling"
     assert refreshed.retry_count == 2
     assert refreshed.error_message is None
 
