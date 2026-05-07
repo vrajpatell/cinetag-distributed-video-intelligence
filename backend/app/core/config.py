@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     redis_url: str = 'redis://redis:6379/0'
     broker_url: str | None = None
     result_backend: str | None = None
+    worker_pool: str = 'solo'
+    worker_concurrency: int = 1
 
     llm_provider: str = 'mock'
     embedding_provider: str = 'mock'

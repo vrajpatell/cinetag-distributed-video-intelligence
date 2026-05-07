@@ -24,7 +24,17 @@ def main() -> None:
         conn.execute(text('SELECT 1'))
     signal.signal(signal.SIGTERM, _shutdown)
     signal.signal(signal.SIGINT, _shutdown)
-    celery.worker_main(argv=['worker', '--loglevel', settings.log_level.lower()])
+    celery.worker_main(
+        argv=[
+            'worker',
+            '--loglevel',
+            settings.log_level.lower(),
+            '--pool',
+            settings.worker_pool,
+            '--concurrency',
+            str(settings.worker_concurrency),
+        ]
+    )
 
 
 if __name__ == '__main__':

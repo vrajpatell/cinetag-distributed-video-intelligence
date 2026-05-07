@@ -15,3 +15,9 @@ def test_effective_queue_urls_respect_explicit_overrides():
     )
     assert settings.effective_broker_url == "redis://10.0.0.5:6379/9"
     assert settings.effective_result_backend == "redis://10.0.0.5:6379/8"
+
+
+def test_worker_runtime_defaults_are_low_memory_friendly():
+    settings = Settings()
+    assert settings.worker_pool == "solo"
+    assert settings.worker_concurrency == 1
