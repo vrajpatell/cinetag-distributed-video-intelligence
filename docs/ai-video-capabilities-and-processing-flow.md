@@ -368,3 +368,89 @@ Only then does asset status become `published`, and a publish audit entry is rec
 - This is effective for demo/small catalogs
 - For larger catalogs, move embeddings to a vector index service (for example Vertex AI Vector Search or pgvector-backed ANN query architecture)
 
+---
+
+## 9) Frontend integration map
+
+This section maps backend AI/ML capabilities to where they are used in the website and how frontend code calls them.
+
+### 9.1 Page-level capability map
+
+- Upload entrypoint:
+  - Page: `frontend/app/upload/page.tsx`
+  - Primary capability: ingestion + pipeline kickoff
+  - User action: upload a video and enqueue processing
+- Pipeline observability:
+  - Page: `frontend/app/jobs/page.tsx`
+  - Primary capability: distributed stage/status monitoring
+  - User action: inspect status, stage runs, retries, and errors
+- Human review:
+  - Page: `frontend/app/review/page.tsx`
+  - Primary capability: human-in-the-loop tag governance
+  - User action: approve/reject/edit AI-generated tags
+- Semantic discovery:
+  - Page: `frontend/app/search/page.tsx`
+  - UI component: `frontend/components/SearchExperience.tsx`
+  - Primary capability: embedding-based natural-language retrieval
+  - User action: search by meaning, then filter by genre/mood/status/confidence
+- Video intelligence output view:
+  - Page: `frontend/app/videos/[id]/page.tsx`
+  - Primary capability: consume final AI summary/tags/job timeline and metadata
+  - User action: inspect processed outputs and decision state
+- Publish gate:
+  - Component: `frontend/components/PublishVideoButton.tsx`
+  - Primary capability: controlled release after review completion
+  - User action: publish `review_ready` video after tag decisions are complete
+
+### 9.2 Frontend API client mapping
+
+Core client module:
+
+- `frontend/lib/api.ts`
+
+Upload orchestration module:
+
+- `frontend/lib/upload.ts`
+
+Key frontend calls and intent:
+
+- Upload + enqueue pipeline:
+  - `uploadVideoDirectToGcs({ file, title, onStageChange, onProgress })`
+  - Internally uses:
+    - `initUpload(...)` -> `POST /api/uploads/init`
+    - signed `PUT` upload to object storage
+    - `completeUpload(...)` -> `POST /api/uploads/complete`
+- Job monitoring:
+  - `getJobs()` -> `GET /api/jobs`
+  - `getJob(id)` -> `GET /api/jobs/{id}`
+  - `retryJob(id)` -> `POST /api/jobs/{id}/retry`
+- Review queue operations:
+  - `getReviewItems()` -> `GET /api/review`
+  - `patchTag(tagId, { status, tag_value })` -> `PATCH /api/tags/{id}`
+- Semantic search:
+  - `searchVideos({ query, tag_type?, status?, duration_min?, duration_max? })`
+  - Route: `POST /api/search/semantic`
+- Video detail intelligence:
+  - `getVideo(id)` -> `GET /api/videos/{id}`
+  - `getVideoTags(id)` -> `GET /api/videos/{id}/tags`
+  - `getVideoTranscript(id)` -> `GET /api/videos/{id}/transcript`
+- Publish:
+  - `publishVideo(id)` -> `POST /api/videos/{id}/publish`
+
+### 9.3 Practical frontend user flow
+
+1. Upload from `/upload` to create video + job.
+2. Track progress and stage execution in `/jobs`.
+3. Resolve pending tags in `/review`.
+4. Discover content semantically in `/search`.
+5. Open `/videos/{id}` to inspect final AI outputs.
+6. Publish reviewed assets via publish button once constraints are met.
+
+### 9.4 UI fallback behavior for demo resiliency
+
+- Several frontend pages gracefully fall back to demo data when API responses are empty/unavailable.
+- This keeps the product walkthrough usable, but real AI/ML behavior requires:
+  - reachable backend API
+  - completed processing jobs
+  - generated embeddings/tags/transcripts in persistent storage
+
