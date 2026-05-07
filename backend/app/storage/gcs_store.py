@@ -1,16 +1,66 @@
 from __future__ import annotations
 
 import logging
+import os
 from datetime import timedelta
+from functools import lru_cache
 from pathlib import Path
-from typing import Any
 
 import google.auth
-from google.auth import iam
-from google.auth.transport.requests import Request
+from google.auth import impersonated_credentials
 from google.cloud import storage
 
 logger = logging.getLogger(__name__)
+
+
+# Scope required to call IAM Credentials' signBlob and to read GCS metadata.
+# We keep the same scope on both source and target credentials so the token
+# returned by the impersonation call can sign URLs and access the bucket.
+_SIGNING_SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]
+
+
+@lru_cache(maxsize=1)
+def _signing_credentials() -> impersonated_credentials.Credentials:
+    """Build credentials capable of signing v4 URLs without a JSON key.
+
+    On Cloud Run the runtime service account exposes only an OAuth access
+    token (``compute_engine.Credentials``), which lacks a private key, so
+    ``blob.generate_signed_url`` cannot sign locally. To work around that
+    we self-impersonate via the IAM Credentials API (``signBlob``):
+
+    1. ``google.auth.default()`` gives us the runtime service account's
+       short-lived token (the *source* credentials).
+    2. ``impersonated_credentials.Credentials`` wraps it and exposes a
+       ``sign_bytes`` method backed by IAM Credentials, which is exactly
+       what ``generate_signed_url`` needs.
+
+    Required IAM: the runtime SA must have
+    ``roles/iam.serviceAccountTokenCreator`` on the target SA. When the
+    runtime SA *is* the target SA (the common Cloud Run case) it must
+    therefore have that role on itself.
+
+    The result is cached for the process lifetime; the underlying access
+    token auto-refreshes via the google-auth transport.
+    """
+    target_principal = os.environ.get("GOOGLE_SERVICE_ACCOUNT_EMAIL")
+    if not target_principal:
+        logger.error(
+            "gcs_signing_misconfigured: GOOGLE_SERVICE_ACCOUNT_EMAIL is not set; "
+            "signed URL generation requires the API runtime SA email so we can "
+            "self-impersonate via IAM Credentials"
+        )
+        raise RuntimeError(
+            "GOOGLE_SERVICE_ACCOUNT_EMAIL must be set to the API runtime "
+            "service account email for signed URL generation"
+        )
+
+    source_credentials, _ = google.auth.default(scopes=_SIGNING_SCOPES)
+    return impersonated_credentials.Credentials(
+        source_credentials=source_credentials,
+        target_principal=target_principal,
+        target_scopes=_SIGNING_SCOPES,
+        lifetime=3600,
+    )
 
 
 class GCSStore:
@@ -79,10 +129,15 @@ class GCSStore:
         expiration_seconds: int = 3600,
         method: str = "GET",
     ) -> str:
+        # Sign with impersonated credentials so this works on Cloud Run where
+        # the runtime credential has no private key. Same path as PUT signing
+        # below; centralising it here means GET URLs never silently fall back
+        # to the unsignable ADC.
         return self.bucket.blob(object_name).generate_signed_url(
             version="v4",
             expiration=timedelta(seconds=expiration_seconds),
             method=method,
+            credentials=_signing_credentials(),
         )
 
     def generate_signed_upload_url(
@@ -106,6 +161,7 @@ class GCSStore:
                 expiration=timedelta(minutes=expires_minutes),
                 method="PUT",
                 content_type=content_type,
+                credentials=_signing_credentials(),
             )
         except Exception:
             # Surface a generic message; the caller logs traceback context but
