@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from functools import lru_cache
 from typing import Literal
 
@@ -30,8 +29,8 @@ class Settings(BaseSettings):
 
     queue_backend: str = 'redis'
     redis_url: str = 'redis://redis:6379/0'
-    broker_url: str = 'redis://redis:6379/1'
-    result_backend: str = 'redis://redis:6379/2'
+    broker_url: str | None = None
+    result_backend: str | None = None
 
     llm_provider: str = 'mock'
     embedding_provider: str = 'mock'
@@ -71,6 +70,30 @@ class Settings(BaseSettings):
                 f"{self.gcp_database_name}?host=/cloudsql/{self.cloud_sql_connection_name}"
             )
         raise ValueError('DATABASE_URL or Cloud SQL settings must be provided')
+
+    @staticmethod
+    def _with_redis_db_index(url: str, db_index: int) -> str:
+        # Preserve query/fragment while replacing only the path's DB index.
+        # Handles redis://host:port and redis://host:port/<db>.
+        prefix, sep, suffix = url.partition('?')
+        if '/' not in prefix.split('://', 1)[-1]:
+            updated = f'{prefix}/{db_index}'
+        else:
+            base, _, _db = prefix.rpartition('/')
+            updated = f'{base}/{db_index}'
+        return f'{updated}{sep}{suffix}' if sep else updated
+
+    @property
+    def effective_broker_url(self) -> str:
+        if self.broker_url:
+            return self.broker_url
+        return self._with_redis_db_index(self.redis_url, 1)
+
+    @property
+    def effective_result_backend(self) -> str:
+        if self.result_backend:
+            return self.result_backend
+        return self._with_redis_db_index(self.redis_url, 2)
 
 
 def build_cloudsql_database_url(project_id: str, region: str, instance: str, database: str, user: str, password: str) -> str:

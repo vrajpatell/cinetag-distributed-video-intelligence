@@ -120,6 +120,23 @@ def _generate_upload_url(
         )
 
 
+def _assert_worker_broker_available() -> None:
+    """Fail fast when Celery broker is down.
+
+    This prevents jobs from being persisted as "queued" when the queue itself is
+    unreachable, which otherwise looks healthy in the UI but never runs.
+    """
+    try:
+        with run_pipeline.app.connection_for_write() as conn:
+            conn.ensure_connection(max_retries=1)
+    except Exception:
+        logger.warning("worker queue unavailable; refusing to finalize upload")
+        raise HTTPException(
+            status_code=503,
+            detail="Worker queue unavailable. Please retry shortly.",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
@@ -300,6 +317,8 @@ def complete_direct_upload(
     if payload.title:
         video.title = payload.title
 
+    _assert_worker_broker_available()
+
     # Idempotency: if a job already exists for this video, return it.
     existing_job = (
         db.query(ProcessingJob)
@@ -336,13 +355,7 @@ def complete_direct_upload(
             detail="Upload completion conflict. The video may already be finalized.",
         )
     db.refresh(job)
-
-    try:
-        run_pipeline.delay(job.id)
-    except Exception:
-        logger.warning(
-            "worker queue unavailable; job %s left in queued state", job.id
-        )
+    run_pipeline.delay(job.id)
 
     logger.info(
         "upload_complete_completed video_id=%s job_id=%s storage_key=%s",
@@ -397,14 +410,11 @@ async def upload_video(
         )
     db.refresh(video)
 
+    _assert_worker_broker_available()
+
     job = ProcessingJob(video_id=video.id, status="queued", current_stage="queued")
     db.add(job)
     db.commit()
     db.refresh(job)
-    try:
-        run_pipeline.delay(job.id)
-    except Exception:
-        logger.warning(
-            "worker queue unavailable; job %s left in queued state", job.id
-        )
+    run_pipeline.delay(job.id)
     return {"video_id": video.id, "job_id": job.id}

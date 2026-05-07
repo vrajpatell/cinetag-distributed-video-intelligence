@@ -38,7 +38,11 @@ from app.observability.metrics import (
 )
 from app.storage import get_object_store
 
-celery = Celery(__name__, broker=settings.broker_url, backend=settings.result_backend)
+celery = Celery(
+    __name__,
+    broker=settings.effective_broker_url,
+    backend=settings.effective_result_backend,
+)
 logger = logging.getLogger(__name__)
 
 PIPELINE_STAGES: tuple[str, ...] = (

@@ -233,13 +233,15 @@ def test_local_direct_put_disabled_in_gcs_mode(client):
 
 def test_complete_upload_happy_path_creates_processing_job(client, db_session):
     init_body = _do_init_and_put(client, filename="trailer.mp4", body=b"abcdef")
-    res = client.post(
-        "/api/uploads/complete",
-        json={
-            "video_id": init_body["video_id"],
-            "storage_key": init_body["storage_key"],
-        },
-    )
+    with patch.object(routes_upload, "_assert_worker_broker_available", return_value=None), \
+         patch.object(routes_upload.run_pipeline, "delay", return_value=None):
+        res = client.post(
+            "/api/uploads/complete",
+            json={
+                "video_id": init_body["video_id"],
+                "storage_key": init_body["storage_key"],
+            },
+        )
     assert res.status_code == 200, res.text
     payload = res.json()
     assert payload["video_id"] == init_body["video_id"]
@@ -267,8 +269,10 @@ def test_complete_upload_is_idempotent_on_retry(client, db_session):
         "video_id": init_body["video_id"],
         "storage_key": init_body["storage_key"],
     }
-    first = client.post("/api/uploads/complete", json=body)
-    second = client.post("/api/uploads/complete", json=body)
+    with patch.object(routes_upload, "_assert_worker_broker_available", return_value=None), \
+         patch.object(routes_upload.run_pipeline, "delay", return_value=None):
+        first = client.post("/api/uploads/complete", json=body)
+        second = client.post("/api/uploads/complete", json=body)
     assert first.status_code == 200, first.text
     assert second.status_code == 200, second.text
     assert first.json()["job_id"] == second.json()["job_id"]
@@ -320,11 +324,11 @@ def test_complete_upload_400_when_object_missing(client, db_session):
     assert "not found" in res.json()["detail"].lower()
 
 
-def test_complete_upload_tolerates_broker_outage(client):
+def test_complete_upload_fails_fast_when_broker_is_down(client, db_session):
     init_body = _do_init_and_put(client)
     with patch.object(
-        routes_upload.run_pipeline,
-        "delay",
+        routes_upload.run_pipeline.app,
+        "connection_for_write",
         side_effect=RuntimeError("broker offline"),
     ):
         res = client.post(
@@ -334,5 +338,15 @@ def test_complete_upload_tolerates_broker_outage(client):
                 "storage_key": init_body["storage_key"],
             },
         )
-    # Broker outage is logged but the row commits; the API stays usable.
-    assert res.status_code == 200, res.text
+    assert res.status_code == 503, res.text
+    assert "queue unavailable" in res.json()["detail"].lower()
+
+    from app.db.models import ProcessingJob
+
+    # No queued row should be created when enqueue cannot succeed.
+    job_count = (
+        db_session.query(ProcessingJob)
+        .filter_by(video_id=init_body["video_id"])
+        .count()
+    )
+    assert job_count == 0
