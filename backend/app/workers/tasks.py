@@ -43,6 +43,11 @@ celery = Celery(
     broker=settings.effective_broker_url,
     backend=settings.effective_result_backend,
 )
+celery.conf.update(
+    task_acks_late=True,
+    task_reject_on_worker_lost=True,
+    worker_prefetch_multiplier=1,
+)
 logger = logging.getLogger(__name__)
 
 PIPELINE_STAGES: tuple[str, ...] = (
@@ -376,7 +381,7 @@ def _detect_scene_timestamps(local_path: str) -> list[float]:
         return []
     threshold = settings.scene_detection_threshold
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             [
                 "ffmpeg",
                 "-i",
@@ -387,21 +392,36 @@ def _detect_scene_timestamps(local_path: str) -> list[float]:
                 "null",
                 "-",
             ],
-            check=False,
-            capture_output=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=60,
         )
     except Exception:
         logger.exception("ffmpeg_scene_detection_failed path=%s", local_path)
         return []
 
     timestamps: list[float] = []
-    for match in re.finditer(r"pts_time:([0-9]+(?:\.[0-9]+)?)", proc.stderr or ""):
-        try:
-            timestamps.append(round(float(match.group(1)), 3))
-        except ValueError:
-            continue
+    try:
+        if proc.stderr is not None:
+            for line in proc.stderr:
+                match = re.search(r"pts_time:([0-9]+(?:\.[0-9]+)?)", line)
+                if match is None:
+                    continue
+                try:
+                    timestamps.append(round(float(match.group(1)), 3))
+                except ValueError:
+                    continue
+                if len(timestamps) >= 200:
+                    # Scene stage only needs coarse boundaries; cap growth to
+                    # avoid noisy videos consuming unbounded memory.
+                    break
+        proc.wait(timeout=60)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+    except Exception:
+        proc.kill()
+        logger.exception("ffmpeg_scene_detection_stream_failed path=%s", local_path)
+        return []
     return sorted(set(timestamps))[:20]
 
 
