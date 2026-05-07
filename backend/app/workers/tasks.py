@@ -52,10 +52,46 @@ PIPELINE_STAGES: tuple[str, ...] = (
     "completed",
 )
 
+# 1x1 black JPEG used as a safe placeholder when ffmpeg is unavailable. This
+# keeps the API contract (image/jpeg) honest -- a downstream image renderer
+# can decode it instead of getting bytes that look like text.
+_PLACEHOLDER_JPEG_BYTES: bytes = bytes.fromhex(
+    "ffd8ffe000104a46494600010100000100010000ffdb004300080606070605080707"
+    "0709090808"
+    "0a0c140d0c0b0b0c1912130f141d1a1f1e1d1a1c1c20242e2720222c231c1c283728"
+    "2c303134341f27393d38323c2e333432ffdb0043010909090c0b0c180d0d18321f1c"
+    "1f323232323232323232323232323232323232323232323232323232323232323232"
+    "323232323232323232323232323232323232ffc00011080001000103012200021101"
+    "031101ffc4001f0000010501010101010100000000000000000102030405060708090"
+    "a0bffc400b5100002010303020403050504040000017d01020300041105122131410"
+    "613516107227114328191a1082342b1c11552d1f02433627282090a161718191a252"
+    "62728292a3435363738393a434445464748494a535455565758595a636465666768"
+    "696a737475767778797a838485868788898a92939495969798999aa2a3a4a5a6a7a"
+    "8a9aab2b3b4b5b6b7b8b9bac2c3c4c5c6c7c8c9cad2d3d4d5d6d7d8d9dae1e2e3e4e"
+    "5e6e7e8e9eaf1f2f3f4f5f6f7f8f9faffc4001f0100030101010101010101010100"
+    "000000000001020304050607008090a0bffc400b5110002010204040304070504040"
+    "0010277000102031104052131061241510761711322328108144291a1b1c109233352"
+    "f0156272d10a162434e125f11718191a262728292a35363738393a4344454647484"
+    "94a535455565758595a636465666768696a737475767778797a82838485868788898"
+    "a92939495969798999aa2a3a4a5a6a7a8a9aab2b3b4b5b6b7b8b9bac2c3c4c5c6c7c"
+    "8c9cad2d3d4d5d6d7d8d9dae2e3e4e5e6e7e8e9eaf2f3f4f5f6f7f8f9faffda000c"
+    "03010002110311003f00fbd040000000000ffd9"
+)
+
+
 @dataclass
 class PipelineContext:
     original_path: str | None
     temp_dir: str
+    # Each entry is (stage_name, reason). Stages that recover via local
+    # placeholders/fallbacks call ctx.note_degraded(...) so the worker can
+    # mark the job partially_completed instead of fully completed.
+    degraded: list[tuple[str, str]] | None = None
+
+    def note_degraded(self, stage: str, reason: str) -> None:
+        if self.degraded is None:
+            self.degraded = []
+        self.degraded.append((stage, reason))
 
 
 StageFn = Callable[[Session, VideoAsset, PipelineContext], None]
@@ -251,6 +287,15 @@ def _fraction_to_float(raw: str | None) -> float | None:
 
 def _metadata_extraction(db: Session, video: VideoAsset, ctx: PipelineContext) -> None:
     payload = _ffprobe_metadata(ctx.original_path) if ctx.original_path else {}
+    if not payload:
+        if settings.media_strict:
+            raise RuntimeError(
+                "metadata_extraction failed: ffprobe unavailable or video unreadable"
+            )
+        ctx.note_degraded(
+            "metadata_extraction",
+            "ffprobe unavailable; using deterministic placeholder metadata",
+        )
     stream = _first_video_stream(payload)
     fmt = payload.get("format") or {}
 
@@ -388,21 +433,41 @@ def _extract_audio(local_path: str, temp_dir: str, video_id: int) -> str | None:
 
 def _frame_sampling(db: Session, video: VideoAsset, ctx: PipelineContext) -> None:
     store = get_object_store()
+    used_placeholder = False
     for index, ts in enumerate(_sample_timestamps(video.duration_seconds), start=1):
         key = f"frames/{video.id}/frame_{index:03d}.jpg"
-        data = (
+        extracted = (
             _extract_frame_bytes(ctx.original_path, ts)
             if ctx.original_path
             else None
-        ) or f"placeholder frame for video={video.id} timestamp={ts}".encode()
+        )
+        if extracted is None:
+            used_placeholder = True
+            data = _PLACEHOLDER_JPEG_BYTES
+            description = (
+                f"Placeholder 1x1 frame at {ts:.2f}s (ffmpeg unavailable)"
+            )
+        else:
+            data = extracted
+            description = f"Representative frame sampled at {ts:.2f}s"
         store.upload_bytes(key, data, content_type="image/jpeg")
         db.add(
             FrameSample(
                 video_id=video.id,
                 timestamp_seconds=ts,
                 storage_key=key,
-                description=f"Representative frame sampled at {ts:.2f}s",
+                description=description,
             )
+        )
+
+    if used_placeholder:
+        if settings.media_strict:
+            raise RuntimeError(
+                "frame_sampling failed: ffmpeg unavailable or frames unreadable"
+            )
+        ctx.note_degraded(
+            "frame_sampling",
+            "ffmpeg unavailable; persisted 1x1 placeholder JPEGs",
         )
 
 
@@ -429,8 +494,22 @@ def _transcription(db: Session, video: VideoAsset, ctx: PipelineContext) -> None
         f"Auto transcript placeholder for {title}. "
         "Speech-to-text provider is configured for mock local processing."
     )
-    audio_path = _extract_audio(ctx.original_path, ctx.temp_dir, video.id) if ctx.original_path else None
+    audio_path = (
+        _extract_audio(ctx.original_path, ctx.temp_dir, video.id)
+        if ctx.original_path
+        else None
+    )
+    if audio_path is None and settings.media_strict:
+        raise RuntimeError(
+            "transcription failed: could not extract audio for STT"
+        )
+
     text, confidence, provider = transcribe_audio(audio_path, fallback)
+    if provider == "mock" and settings.transcription_provider != "mock":
+        ctx.note_degraded(
+            "transcription",
+            f"transcription provider {settings.transcription_provider} fell back to mock",
+        )
     db.add(Transcript(video_id=video.id, text=text, language="en", confidence=confidence))
     store = get_object_store()
     store.upload_bytes(
@@ -472,6 +551,7 @@ def _llm_tagging(db: Session, video: VideoAsset, ctx: PipelineContext) -> None:
     )
     bundle = generate_tag_bundle(prompt)
     video.title = video.title or video.original_filename
+    video.summary = bundle.summary
     rationale = bundle.summary
 
     generated = 0
@@ -592,18 +672,36 @@ def run_pipeline(job_id: int):
                 original_path=_materialize_original(video, temp_dir),
                 temp_dir=temp_dir,
             )
+            if ctx.original_path is None:
+                if settings.media_strict:
+                    raise RuntimeError(
+                        "could not materialize original media object for processing"
+                    )
+                ctx.note_degraded(
+                    "metadata_extraction",
+                    "could not download original; running pipeline with placeholders",
+                )
             for stage in PIPELINE_STAGES[start_index:]:
                 _run_stage(db, job_id, stage, STAGE_HANDLERS[stage], ctx)
 
         job = db.get(ProcessingJob, job_id)
         if job is None:
             raise ValueError(f"Processing job {job_id} disappeared")
-        job.status = "completed"
+        degraded = ctx.degraded or []
+        if degraded:
+            job.status = "partially_completed"
+            job.error_message = "; ".join(f"{stage}: {reason}" for stage, reason in degraded)
+        else:
+            job.status = "completed"
         job.current_stage = "completed"
         job.completed_at = _now()
         db.commit()
         videos_processed.inc()
-        return {"job_id": job_id, "status": "completed"}
+        return {
+            "job_id": job_id,
+            "status": job.status,
+            "degraded_stages": [stage for stage, _ in degraded],
+        }
     except Exception as exc:
         logger.exception("pipeline_failed job_id=%s", job_id)
         db.rollback()

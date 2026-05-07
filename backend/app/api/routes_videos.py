@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db.models import (
+    AuditLog,
     FrameSample,
     GeneratedTag,
     ProcessingJob,
@@ -28,10 +29,17 @@ def _serialize_video(video: VideoAsset, db: Session) -> dict[str, Any]:
     )
     transcript = db.query(Transcript).filter_by(video_id=video.id).first()
     approved_or_pending = [t for t in tags if t.status in ("approved", "pending_review")]
+    # Prefer the LLM-generated summary (first-class field) and fall back to a
+    # transcript snippet only when the pipeline has not yet produced one.
+    description = (
+        getattr(video, "summary", None)
+        or (transcript.text[:300] if transcript else None)
+    )
     return {
         "id": video.id,
         "title": video.title,
-        "description": transcript.text[:300] if transcript else None,
+        "description": description,
+        "summary": getattr(video, "summary", None),
         "duration_seconds": video.duration_seconds,
         "status": video.status,
         "tags": [
@@ -96,3 +104,57 @@ def transcript(video_id: int, db: Session = Depends(get_db)):
 @router.get("/{video_id}/tags")
 def tags(video_id: int, db: Session = Depends(get_db)):
     return db.query(GeneratedTag).filter_by(video_id=video_id).all()
+
+
+@router.post("/{video_id}/publish")
+def publish_video(video_id: int, db: Session = Depends(get_db)):
+    """Mark a reviewed video as published.
+
+    Requires that no auto-generated tags are still in pending_review and
+    that the video has at least one approved tag, so a human has actually
+    signed off on the AI output before it goes live.
+    """
+    video = db.get(VideoAsset, video_id)
+    if not video:
+        raise HTTPException(404, "video not found")
+    if video.status not in ("review_ready", "published"):
+        raise HTTPException(
+            409,
+            f"video is in status {video.status!r}; only review_ready videos can be published",
+        )
+    pending = (
+        db.query(GeneratedTag)
+        .filter_by(video_id=video_id, status="pending_review")
+        .count()
+    )
+    if pending:
+        raise HTTPException(
+            409,
+            f"{pending} tag(s) are still pending review; resolve them before publishing",
+        )
+    approved = (
+        db.query(GeneratedTag)
+        .filter_by(video_id=video_id, status="approved")
+        .count()
+    )
+    if approved == 0:
+        raise HTTPException(
+            409,
+            "video has no approved tags; approve at least one tag before publishing",
+        )
+
+    before_status = video.status
+    video.status = "published"
+    db.add(
+        AuditLog(
+            actor="reviewer",
+            action="video_publish",
+            entity_type="video",
+            entity_id=video.id,
+            before_json={"status": before_status},
+            after_json={"status": "published"},
+        )
+    )
+    db.commit()
+    db.refresh(video)
+    return _serialize_video(video, db)

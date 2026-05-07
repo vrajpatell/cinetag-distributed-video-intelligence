@@ -43,6 +43,7 @@ export interface VideoSummary {
   id: number | string;
   title: string;
   description?: string;
+  summary?: string;
   duration_seconds?: number;
   status?: VideoStatus | string;
   thumbnailKey?: string;

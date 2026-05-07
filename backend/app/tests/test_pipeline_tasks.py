@@ -51,7 +51,12 @@ def test_run_pipeline_creates_analysis_outputs(monkeypatch, client, db_engine, d
 
     result = tasks.run_pipeline(job.id)
 
-    assert result == {"job_id": job.id, "status": "completed"}
+    # Without ffprobe/ffmpeg available the pipeline now reports
+    # partially_completed and lists degraded stages so operators can see
+    # exactly what fell back to placeholders.
+    assert result["job_id"] == job.id
+    assert result["status"] in ("completed", "partially_completed")
+    assert isinstance(result.get("degraded_stages"), list)
 
     db_session.expire_all()
     refreshed_video = db_session.get(VideoAsset, video.id)
@@ -60,7 +65,8 @@ def test_run_pipeline_creates_analysis_outputs(monkeypatch, client, db_engine, d
     assert refreshed_video.duration_seconds == 60.0
     assert refreshed_video.width == 1920
     assert refreshed_video.height == 1080
-    assert refreshed_job.status == "completed"
+    assert refreshed_video.summary
+    assert refreshed_job.status in ("completed", "partially_completed")
     assert refreshed_job.current_stage == "completed"
     assert refreshed_job.started_at is not None
     assert refreshed_job.completed_at is not None

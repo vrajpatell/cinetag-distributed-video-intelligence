@@ -10,6 +10,7 @@ class VideoAsset(Base):
     original_filename: Mapped[str] = mapped_column(String(255))
     storage_key: Mapped[str] = mapped_column(String(512), unique=True)
     status: Mapped[str] = mapped_column(String(32), default="uploaded")
+    summary: Mapped[str | None] = mapped_column(Text)
     duration_seconds: Mapped[float | None] = mapped_column(Float)
     width: Mapped[int | None] = mapped_column(Integer)
     height: Mapped[int | None] = mapped_column(Integer)

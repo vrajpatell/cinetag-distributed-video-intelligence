@@ -7,9 +7,11 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+import math
+
 from app.db.models import EmbeddingRecord, GeneratedTag, VideoAsset
 from app.db.session import get_db
-from app.ml.mock_embedding_client import MockEmbeddingClient
+from app.ml.providers import embed_text
 
 router = APIRouter(prefix='/search')
 
@@ -23,11 +25,21 @@ class Query(BaseModel):
 
 
 def _cosine(a: list[float], b: list[float]) -> float:
-    if not a or not b:
+    """Length-normalized cosine similarity.
+
+    Different providers emit different vector lengths (mock=16, OpenAI=1536+).
+    We treat dim-mismatched records as non-matches rather than zeroing out
+    the entire scoreboard, so a corpus mid-migration still returns the
+    matches it has.
+    """
+    if not a or not b or len(a) != len(b):
         return 0.0
-    if len(a) != len(b):
+    dot = sum(x * y for x, y in zip(a, b))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(y * y for y in b))
+    if na == 0 or nb == 0:
         return 0.0
-    return sum(x * y for x, y in zip(a, b))
+    return dot / (na * nb)
 
 
 @router.post('/semantic')
@@ -39,11 +51,17 @@ def semantic(q: Query, db: Session = Depends(get_db)) -> list[dict[str, Any]]:
     genres, moods, and matched_tags. Without those fields, the frontend's
     genre/mood filters would silently exclude every real result.
     """
-    target = MockEmbeddingClient().embed(q.query)
+    target = embed_text(q.query)
+    target_len = len(target)
 
     # 1) Score every embedding record, keeping only the best score per video.
+    #    We pre-filter to records produced with the same vector length to
+    #    avoid silently zero-scoring the whole catalog when a corpus is
+    #    mid-migration between providers.
     best: dict[int, dict[str, Any]] = {}
     for rec in db.query(EmbeddingRecord).all():
+        if not rec.embedding or len(rec.embedding) != target_len:
+            continue
         score = _cosine(target, rec.embedding)
         cur = best.get(rec.video_id)
         if cur is None or score > cur['score']:

@@ -209,6 +209,10 @@ export async function patchTag(tagId: number | string, body: { status?: string; 
   });
 }
 
+export async function publishVideo(id: string | number): Promise<VideoSummary> {
+  return apiFetch<VideoSummary>(`/api/videos/${id}/publish`, { method: 'POST' });
+}
+
 export interface HealthSnapshot {
   api: 'ok' | 'down' | 'unknown';
   ready: 'ok' | 'down' | 'unknown';

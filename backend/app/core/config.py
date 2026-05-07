@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     openai_transcription_model: str = 'whisper-1'
     scene_detection_threshold: float = 0.35
 
+    # When true, configured providers must succeed. Failures raise instead of
+    # silently falling back to the mock implementations -- the worker then
+    # marks the job failed/partially_completed for operator review.
+    provider_strict: bool = False
+    # When true, surface ffmpeg/ffprobe/audio-extraction errors as failures
+    # instead of using deterministic placeholders so dev demos still complete.
+    media_strict: bool = False
+
     secret_manager_enabled: bool = False
     log_level: str = 'INFO'
     otel_enabled: bool = False

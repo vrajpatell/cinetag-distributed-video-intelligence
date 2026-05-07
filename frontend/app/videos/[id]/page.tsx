@@ -2,6 +2,7 @@ import Link from 'next/link';
 import AITagCloud from '@/components/AITagCloud';
 import JobStatusBadge from '@/components/JobStatusBadge';
 import JobTimeline from '@/components/JobTimeline';
+import PublishVideoButton from '@/components/PublishVideoButton';
 import RecommendationRail from '@/components/RecommendationRail';
 import { safeFetch } from '@/lib/api';
 import { DEMO_JOBS, DEMO_VIDEOS, findDemoVideo, gradientForId } from '@/lib/demo-data';
@@ -33,7 +34,11 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
 
   const grad = video.thumbnailGradient || gradientForId(video.id);
   const tagSummary = tags.slice(0, 6);
+  // Prefer the first-class LLM summary, fall back to the older description
+  // string, and only then surface placeholder copy. This keeps detail pages
+  // accurate when the pipeline has produced a real summary.
   const summaryText =
+    video.summary ||
     video.description ||
     (isDemo
       ? 'AI-generated summary will appear here once the LLM tagging stage completes. The demo summary describes pacing, mood, and key visual cues.'
@@ -163,13 +168,23 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
           <div className="panel p-4">
             <div className="text-[11px] uppercase tracking-wider text-white/50">Review status</div>
             <p className="mt-1 text-[12.5px] text-white/75">
-              {String(video.status) === 'review_ready'
+              {String(video.status) === 'published'
+                ? 'This asset has been reviewed and published to the catalog.'
+                : String(video.status) === 'review_ready'
                 ? 'This asset has AI tags awaiting human approval.'
                 : 'No tags currently pending review.'}
             </p>
-            <Link href="/review" className="btn-secondary mt-3 !text-xs">
-              Open review queue
-            </Link>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Link href="/review" className="btn-secondary !text-xs">
+                Open review queue
+              </Link>
+              {!isDemo ? (
+                <PublishVideoButton
+                  videoId={video.id}
+                  initialStatus={String(video.status || '')}
+                />
+              ) : null}
+            </div>
           </div>
         </aside>
       </section>

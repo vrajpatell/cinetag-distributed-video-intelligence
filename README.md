@@ -80,6 +80,14 @@ CineTag implements one credible, end-to-end version of each so the architecture 
 | Artifact Registry        | Container images for API / worker / frontend                  |
 | Secret Manager           | Database password, LLM keys, signed-URL credentials           |
 | Cloud Monitoring/Logging | Metrics, traces, latency SLOs, alerts                         |
+| Cloud Build / Cloud Deploy | CI/CD for API, worker, and frontend images                  |
+| Vertex AI Vector Search (or AlloyDB w/ `pgvector`) | Production vector store to replace the in-memory cosine scan in `/api/search/semantic` |
+| Vertex AI Gemini API     | First-party alternative to the OpenAI LLM provider for tag generation |
+| Vertex AI Embeddings     | First-party alternative to OpenAI embeddings (`text-embedding-005`)   |
+| Speech-to-Text v2        | First-party alternative to Whisper for the `transcription` stage      |
+| Video Intelligence API   | Optional substitute for ffmpeg-based scene detection / object tagging |
+| Cloud Tasks / Pub/Sub    | Production replacement for Redis-backed Celery if you need GCP-native queueing |
+| Cloud Workflows or Eventarc | Orchestrate the upload → process → publish pipeline as managed workflow steps |
 
 ## 6. Upload architecture
 
@@ -113,13 +121,39 @@ Each video flows through a Celery pipeline of independently retryable stages:
 - Each tag carries a confidence score, source (`llm | transcript | visual_frame | metadata | manual`), and rationale.
 - Tags land in a **review queue** at `pending_review`. Humans approve, reject, or edit; every decision is recorded in `audit_logs`.
 
-Mock providers (`MockLLMClient`, `MockEmbeddingClient`) keep the project deterministic and free to demo. Swapping in real providers is a one-line config change.
+Mock providers (`MockLLMClient`, `MockEmbeddingClient`) keep the project deterministic and free to demo. The pipeline can switch to real providers via environment variables — no code changes:
+
+| Env var                       | Default                  | Purpose                                                                 |
+|-------------------------------|--------------------------|-------------------------------------------------------------------------|
+| `LLM_PROVIDER`                | `mock`                   | `mock` or `openai` — controls tag generation in `llm_tagging`           |
+| `EMBEDDING_PROVIDER`          | `mock`                   | `mock` or `openai` — used by both the worker AND `/api/search/semantic` |
+| `TRANSCRIPTION_PROVIDER`      | `mock`                   | `mock` or `openai` (Whisper) — used in `transcription`                  |
+| `OPENAI_API_KEY`              | _unset_                  | Required when any provider is `openai`                                  |
+| `OPENAI_LLM_MODEL`            | `gpt-4o-mini`            | Model used for tag generation                                           |
+| `OPENAI_EMBEDDING_MODEL`      | `text-embedding-3-small` | Model used for query + corpus embeddings                                |
+| `OPENAI_TRANSCRIPTION_MODEL`  | `whisper-1`              | Model used for STT                                                      |
+| `PROVIDER_STRICT`             | `false`                  | If `true`, OpenAI failures raise instead of silently using mock output  |
+| `MEDIA_STRICT`                | `false`                  | If `true`, ffmpeg/ffprobe/audio-extraction failures fail the stage      |
+| `SCENE_DETECTION_THRESHOLD`   | `0.35`                   | Sensitivity threshold for ffmpeg scene detection                        |
+
+When `PROVIDER_STRICT` is off (the default), an OpenAI outage is logged and the pipeline falls back to deterministic mock output so demos never break — but the job is then marked `partially_completed` and the degraded stages are listed in `error_message` so operators can see exactly what fell back. When `PROVIDER_STRICT=true`, the same outage fails the job instead, making it visible to alerting.
+
+> Search and the worker share the same embedding provider. If `EMBEDDING_PROVIDER` is changed mid-flight, existing embeddings keep their old vector dimensionality; `/api/search/semantic` skips dim-mismatched records rather than zero-scoring the catalog. Re-run the pipeline (or backfill embeddings) when migrating between providers.
 
 ## 8. Recommendation-ready discovery
 
-- **Semantic search** ranks results by cosine similarity against query embeddings, scoped by tag-type and confidence filters.
+- **Semantic search** ranks results by cosine similarity against query embeddings, scoped by tag-type and confidence filters. Both the corpus embeddings and query embeddings go through the same provider abstraction, so swapping `EMBEDDING_PROVIDER` between `mock` and `openai` keeps search consistent with the pipeline.
 - **Related content rails** combine tag-cluster overlap with embedding similarity.
 - **Recommendation reason** strings are surfaced in the UI ("Because of these tags") so the experience is explainable, not a black box.
+- **Today** the search route does an in-memory cosine scan over `embedding_records` — fine for the demo dataset but not for a large catalog. The natural production upgrade is **Vertex AI Vector Search** or **AlloyDB / Cloud SQL with the `pgvector` extension** so the same embeddings can be queried with sub-second ANN.
+
+### Publish lifecycle
+
+The pipeline only ever brings a video to `review_ready`. Going live is an explicit human action:
+
+1. The pipeline marks the video `review_ready` and tags `pending_review`.
+2. Reviewers approve / reject / edit each tag in `/review`. Every decision is written to `audit_logs`.
+3. Once **all** auto-generated tags are resolved (no `pending_review` left) and **at least one** is approved, `POST /api/videos/{id}/publish` flips the video to `status=published` and writes a `video_publish` audit row. The video detail page exposes this as a "Publish video" button.
 
 ## 9. Local development
 
