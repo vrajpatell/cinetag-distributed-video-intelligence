@@ -1,12 +1,15 @@
+substitutions:
+  _NEXT_PUBLIC_API_BASE_URL: https://cinetag-api-1015789800459.us-central1.run.app
 steps:
   - name: gcr.io/cloud-builders/docker
     args:
       - build
-      - --no-cache
+      - --build-arg
+      - NEXT_PUBLIC_API_BASE_URL=${_NEXT_PUBLIC_API_BASE_URL}
+      - --build-arg
+      - NEXT_PUBLIC_APP_ENV=gcp
       - -t
       - us-central1-docker.pkg.dev/cinetag-distributed-video/cinetag-containers/cinetag-frontend:latest
-      - --build-arg
-      - NEXT_PUBLIC_API_BASE_URL=https://cinetag-api-vaadli5ipq-uc.a.run.app
       - ./frontend
 
   - name: gcr.io/cloud-builders/docker

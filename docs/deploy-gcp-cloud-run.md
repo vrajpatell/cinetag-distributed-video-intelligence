@@ -168,7 +168,7 @@ gcloud run services logs read cinetag-worker --region us-central1 --limit 100
 1. `terraform apply` to provision VPC, private Cloud SQL, Redis network, and Pub/Sub.
 2. Run DB migration to add pgvector columns/index.
 3. Deploy API + worker with new queue environment variables.
-4. Keep `QUEUE_BACKEND=celery` initially; switch to `pubsub` only after topic/subscription and consumer readiness are verified.
+4. Keep `QUEUE_BACKEND=celery` initially; switch to `pubsub` only after topic/subscription and consumer readiness are verified. The worker Cloud Run service should keep the entry command `python -m app.workers.worker_service_main`: it starts the HTTP health server and spawns either the Celery worker (`worker_main`) or the Pub/Sub pull consumer (`pubsub_consumer`) according to `QUEUE_BACKEND`.
 
 ### Rollback plan
 

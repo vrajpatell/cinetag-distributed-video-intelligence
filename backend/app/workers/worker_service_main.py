@@ -17,6 +17,13 @@ logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
 
 
+def _worker_command() -> list[str]:
+    """Subprocess argv for the long-running job executor (Celery vs Pub/Sub)."""
+    if settings.queue_backend == 'pubsub':
+        return ['python', '-m', 'app.workers.pubsub_consumer']
+    return ['python', '-m', 'app.workers.worker_main']
+
+
 class WorkerRuntime:
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -28,9 +35,13 @@ class WorkerRuntime:
         with self._lock:
             if self._process is not None:
                 return
-            logger.info('starting background worker process')
+            cmd = _worker_command()
+            logger.info(
+                'starting background worker process',
+                extra={'queue_backend': settings.queue_backend, 'argv': cmd},
+            )
             self._process = subprocess.Popen(
-                ['python', '-m', 'app.workers.worker_main'],
+                cmd,
                 stdout=None,
                 stderr=None,
                 text=True,
