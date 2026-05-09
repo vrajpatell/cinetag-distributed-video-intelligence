@@ -38,6 +38,51 @@ variable "redis_name" {
   default = "cinetag-redis"
 }
 
+variable "vpc_name" {
+  type    = string
+  default = "cinetag-main-vpc"
+}
+
+variable "subnet_name" {
+  type    = string
+  default = "cinetag-main-subnet"
+}
+
+variable "subnet_cidr" {
+  type    = string
+  default = "10.10.0.0/24"
+}
+
+variable "cloud_sql_tier" {
+  type    = string
+  default = "db-custom-1-3840"
+}
+
+variable "deletion_protection" {
+  type    = bool
+  default = true
+}
+
+variable "queue_backend" {
+  type    = string
+  default = "celery"
+}
+
+variable "pubsub_topic_name" {
+  type    = string
+  default = "cinetag-processing-jobs"
+}
+
+variable "pubsub_subscription_name" {
+  type    = string
+  default = "cinetag-processing-jobs-sub"
+}
+
+variable "pubsub_dead_letter_topic_name" {
+  type    = string
+  default = "cinetag-processing-jobs-dlq"
+}
+
 variable "api_image" {
   type    = string
   default = "us-central1-docker.pkg.dev/cinetag-distributed-video/cinetag-containers/cinetag-api:latest"

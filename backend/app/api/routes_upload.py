@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.models import ProcessingJob, VideoAsset
 from app.db.session import get_db
+from app.queue.publisher import publish_processing_job
 from app.storage import get_object_store
 from app.storage.local_store import UnsafeStorageKey
 from app.workers.tasks import run_pipeline
@@ -126,6 +127,8 @@ def _assert_worker_broker_available() -> None:
     This prevents jobs from being persisted as "queued" when the queue itself is
     unreachable, which otherwise looks healthy in the UI but never runs.
     """
+    if settings.queue_backend not in ("celery", "redis"):
+        return
     try:
         with run_pipeline.app.connection_for_write() as conn:
             conn.ensure_connection(max_retries=1)
@@ -355,7 +358,13 @@ def complete_direct_upload(
             detail="Upload completion conflict. The video may already be finalized.",
         )
     db.refresh(job)
-    run_pipeline.delay(job.id)
+    try:
+        publish_processing_job(job.id)
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Job created, but dispatch failed. Please retry shortly.",
+        )
 
     logger.info(
         "upload_complete_completed video_id=%s job_id=%s storage_key=%s",
@@ -416,5 +425,11 @@ async def upload_video(
     db.add(job)
     db.commit()
     db.refresh(job)
-    run_pipeline.delay(job.id)
+    try:
+        publish_processing_job(job.id)
+    except Exception:
+        raise HTTPException(
+            status_code=503,
+            detail="Job created, but dispatch failed. Please retry shortly.",
+        )
     return {"video_id": video.id, "job_id": job.id}

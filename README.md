@@ -194,6 +194,13 @@ Critical IAM:
 
 See `docs/deploy-gcp-cloud-run.md` for full Terraform + gcloud steps.
 
+### Production hardening updates
+
+- Semantic search now supports Cloud SQL `pgvector` with a guarded Python fallback.
+- Upload and retry routes publish jobs through a queue abstraction (`celery` or `pubsub`).
+- Terraform now provisions dedicated VPC networking for private Cloud SQL and private Redis.
+- Pub/Sub topic/subscription and IAM wiring are available for GCP-native dispatch.
+
 ### Verification
 
 ```bash

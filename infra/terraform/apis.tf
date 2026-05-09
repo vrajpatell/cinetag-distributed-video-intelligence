@@ -11,7 +11,9 @@ locals {
     "monitoring.googleapis.com",
     "iam.googleapis.com",
     "compute.googleapis.com",
-    "servicenetworking.googleapis.com"
+    "servicenetworking.googleapis.com",
+    "vpcaccess.googleapis.com",
+    "pubsub.googleapis.com"
   ]
 }
 

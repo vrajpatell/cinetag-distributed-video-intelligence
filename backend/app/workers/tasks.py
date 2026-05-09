@@ -176,6 +176,7 @@ def _run_stage(
     db.refresh(run)
 
     started = time.perf_counter()
+    logger.info("worker_stage_started job_id=%s stage=%s", job_id, stage_name)
     try:
         stage_fn(db, video, ctx)
     except Exception as exc:
@@ -196,6 +197,7 @@ def _run_stage(
         if video is not None:
             video.status = "failed"
         db.commit()
+        logger.exception("worker_stage_failed job_id=%s stage=%s", job_id, stage_name)
         stage_duration.labels(stage_name).observe(time.perf_counter() - started)
         raise
 
@@ -203,6 +205,12 @@ def _run_stage(
     run.completed_at = _now()
     run.duration_ms = int((time.perf_counter() - started) * 1000)
     db.commit()
+    logger.info(
+        "worker_stage_completed job_id=%s stage=%s duration_ms=%s",
+        job_id,
+        stage_name,
+        run.duration_ms,
+    )
     stage_duration.labels(stage_name).observe(time.perf_counter() - started)
 
 
@@ -596,39 +604,58 @@ def _llm_tagging(db: Session, video: VideoAsset, ctx: PipelineContext) -> None:
 
 
 def _embedding(db: Session, video: VideoAsset, ctx: PipelineContext) -> None:
+    def _build_embedding_payload(text: str) -> dict[str, Any]:
+        values = embed_text(text)
+        if not values:
+            raise RuntimeError("embedding stage produced an empty vector")
+        dimension = len(values)
+        vector = values if dimension == settings.embedding_vector_dimension else None
+        return {
+            "embedding": values,
+            "embedding_vector": vector,
+            "embedding_dimension": dimension,
+            "embedding_provider": settings.embedding_provider,
+            "embedding_model": settings.openai_embedding_model
+            if settings.embedding_provider == "openai"
+            else "mock-embedding",
+        }
+
     transcript = db.query(Transcript).filter_by(video_id=video.id).first()
     if transcript is not None:
+        payload = _build_embedding_payload(transcript.text)
         db.add(
             EmbeddingRecord(
                 video_id=video.id,
                 entity_type="transcript",
                 entity_id=transcript.id or video.id,
-                embedding=embed_text(transcript.text),
                 text=transcript.text,
+                **payload,
             )
         )
 
     for tag in db.query(GeneratedTag).filter_by(video_id=video.id).all():
         text = f"{tag.tag_type}: {tag.tag_value}. {tag.rationale or ''}".strip()
+        payload = _build_embedding_payload(text)
         db.add(
             EmbeddingRecord(
                 video_id=video.id,
                 entity_type="tag",
                 entity_id=tag.id or 0,
-                embedding=embed_text(text),
                 text=text,
+                **payload,
             )
         )
 
     for scene in db.query(SceneSegment).filter_by(video_id=video.id).all():
         text = scene.summary or f"Scene from {scene.start_time_seconds} to {scene.end_time_seconds}"
+        payload = _build_embedding_payload(text)
         db.add(
             EmbeddingRecord(
                 video_id=video.id,
                 entity_type="scene",
                 entity_id=scene.id or 0,
-                embedding=embed_text(text),
                 text=text,
+                **payload,
             )
         )
 

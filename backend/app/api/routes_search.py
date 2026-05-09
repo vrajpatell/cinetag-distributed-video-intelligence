@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from collections import defaultdict
 from typing import Any
+import logging
+import time
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 import math
@@ -12,8 +15,11 @@ import math
 from app.db.models import EmbeddingRecord, GeneratedTag, VideoAsset
 from app.db.session import get_db
 from app.ml.providers import embed_text
+from app.observability.metrics import semantic_search_latency_seconds, semantic_search_total
+from app.core.config import settings
 
 router = APIRouter(prefix='/search')
+logger = logging.getLogger(__name__)
 
 
 class Query(BaseModel):
@@ -51,27 +57,74 @@ def semantic(q: Query, db: Session = Depends(get_db)) -> list[dict[str, Any]]:
     genres, moods, and matched_tags. Without those fields, the frontend's
     genre/mood filters would silently exclude every real result.
     """
+    started = time.perf_counter()
     target = embed_text(q.query)
     target_len = len(target)
+    if target_len == 0:
+        semantic_search_total.labels(backend="none", status="error").inc()
+        return []
 
-    # 1) Score every embedding record, keeping only the best score per video.
-    #    We pre-filter to records produced with the same vector length to
-    #    avoid silently zero-scoring the whole catalog when a corpus is
-    #    mid-migration between providers.
     best: dict[int, dict[str, Any]] = {}
-    for rec in db.query(EmbeddingRecord).all():
-        if not rec.embedding or len(rec.embedding) != target_len:
-            continue
-        score = _cosine(target, rec.embedding)
-        cur = best.get(rec.video_id)
-        if cur is None or score > cur['score']:
-            best[rec.video_id] = {
-                'score': float(score),
-                'entity_type': rec.entity_type,
-                'snippet': rec.text,
-            }
+    search_backend = "python"
+    use_pgvector = settings.pgvector_enabled and settings.semantic_search_backend in (
+        "auto",
+        "pgvector",
+    )
+    should_use_python_fallback = not use_pgvector
+    if use_pgvector:
+        try:
+            distance_expr = EmbeddingRecord.embedding_vector.cosine_distance(target)
+            query = (
+                db.query(EmbeddingRecord, VideoAsset, distance_expr.label("distance"))
+                .join(VideoAsset, VideoAsset.id == EmbeddingRecord.video_id)
+                .filter(
+                    and_(
+                        EmbeddingRecord.embedding_vector.isnot(None),
+                        EmbeddingRecord.embedding_dimension == target_len,
+                    )
+                )
+            )
+            if q.status:
+                query = query.filter(VideoAsset.status == q.status)
+            if q.duration_min is not None:
+                query = query.filter((VideoAsset.duration_seconds.isnot(None)) & (VideoAsset.duration_seconds >= q.duration_min))
+            if q.duration_max is not None:
+                query = query.filter((VideoAsset.duration_seconds.isnot(None)) & (VideoAsset.duration_seconds <= q.duration_max))
+
+            for rec, _video, distance in query.order_by(distance_expr.asc()).limit(500).all():
+                score = 1.0 - float(distance or 1.0)
+                cur = best.get(rec.video_id)
+                if cur is None or score > cur["score"]:
+                    best[rec.video_id] = {
+                        "score": score,
+                        "entity_type": rec.entity_type,
+                        "snippet": rec.text,
+                    }
+            search_backend = "pgvector"
+        except Exception:
+            if settings.semantic_search_backend == "pgvector" and settings.app_env != "local":
+                raise
+            logger.warning("semantic_search_pgvector_fallback_to_python")
+            should_use_python_fallback = True
+
+    if should_use_python_fallback:
+        for rec in db.query(EmbeddingRecord).all():
+            if not rec.embedding or len(rec.embedding) != target_len:
+                continue
+            score = _cosine(target, rec.embedding)
+            cur = best.get(rec.video_id)
+            if cur is None or score > cur['score']:
+                best[rec.video_id] = {
+                    'score': float(score),
+                    'entity_type': rec.entity_type,
+                    'snippet': rec.text,
+                }
 
     if not best:
+        semantic_search_total.labels(backend=search_backend, status="empty").inc()
+        semantic_search_latency_seconds.labels(backend=search_backend).observe(
+            time.perf_counter() - started
+        )
         return []
 
     # 2) Pull every relevant video and tag in two queries (avoid N+1).
@@ -139,4 +192,8 @@ def semantic(q: Query, db: Session = Depends(get_db)) -> list[dict[str, Any]]:
             if (r.get('duration_seconds') or 0) <= q.duration_max
         ]
 
+    semantic_search_total.labels(backend=search_backend, status="success").inc()
+    semantic_search_latency_seconds.labels(backend=search_backend).observe(
+        time.perf_counter() - started
+    )
     return sorted(results, key=lambda x: x['score'], reverse=True)[:20]

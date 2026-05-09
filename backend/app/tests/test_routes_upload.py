@@ -234,7 +234,7 @@ def test_local_direct_put_disabled_in_gcs_mode(client):
 def test_complete_upload_happy_path_creates_processing_job(client, db_session):
     init_body = _do_init_and_put(client, filename="trailer.mp4", body=b"abcdef")
     with patch.object(routes_upload, "_assert_worker_broker_available", return_value=None), \
-         patch.object(routes_upload.run_pipeline, "delay", return_value=None):
+         patch.object(routes_upload, "publish_processing_job", return_value=None):
         res = client.post(
             "/api/uploads/complete",
             json={
@@ -270,7 +270,7 @@ def test_complete_upload_is_idempotent_on_retry(client, db_session):
         "storage_key": init_body["storage_key"],
     }
     with patch.object(routes_upload, "_assert_worker_broker_available", return_value=None), \
-         patch.object(routes_upload.run_pipeline, "delay", return_value=None):
+         patch.object(routes_upload, "publish_processing_job", return_value=None):
         first = client.post("/api/uploads/complete", json=body)
         second = client.post("/api/uploads/complete", json=body)
     assert first.status_code == 200, first.text
@@ -350,3 +350,18 @@ def test_complete_upload_fails_fast_when_broker_is_down(client, db_session):
         .count()
     )
     assert job_count == 0
+
+
+def test_complete_upload_returns_503_when_publisher_fails(client):
+    init_body = _do_init_and_put(client)
+    with patch.object(routes_upload, "_assert_worker_broker_available", return_value=None), \
+         patch.object(routes_upload, "publish_processing_job", side_effect=RuntimeError("queue down")):
+        res = client.post(
+            "/api/uploads/complete",
+            json={
+                "video_id": init_body["video_id"],
+                "storage_key": init_body["storage_key"],
+            },
+        )
+    assert res.status_code == 503
+    assert "dispatch failed" in res.json()["detail"].lower()

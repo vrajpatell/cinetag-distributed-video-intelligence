@@ -3,7 +3,6 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,12 +26,19 @@ class Settings(BaseSettings):
     gcp_database_user: str = 'cinetag_app'
     database_password: str | None = None
 
-    queue_backend: str = 'redis'
+    queue_backend: Literal['celery', 'pubsub', 'redis'] = 'celery'
     redis_url: str = 'redis://redis:6379/0'
     broker_url: str | None = None
     result_backend: str | None = None
     worker_pool: str = 'solo'
     worker_concurrency: int = 1
+    pubsub_topic_name: str = 'cinetag-processing-jobs'
+    pubsub_subscription_name: str = 'cinetag-processing-jobs-sub'
+    pubsub_dead_letter_topic_name: str = 'cinetag-processing-jobs-dlq'
+
+    semantic_search_backend: Literal['auto', 'pgvector', 'python'] = 'auto'
+    pgvector_enabled: bool = True
+    embedding_vector_dimension: int = 1536
 
     llm_provider: str = 'mock'
     embedding_provider: str = 'mock'

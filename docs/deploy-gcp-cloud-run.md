@@ -17,6 +17,21 @@ Supporting services:
 - **Cloud Storage** for original videos and derived artifacts
 - **Artifact Registry** for API/worker/frontend container images
 - **Secret Manager** for sensitive runtime configuration
+- **Pub/Sub** for production job dispatch (optional, Celery remains supported)
+
+```mermaid
+flowchart LR
+  FE[Frontend Cloud Run] --> API[FastAPI Cloud Run]
+  API -->|signed PUT| GCS[(Cloud Storage)]
+  API -->|metadata| SQL[(Cloud SQL PostgreSQL + pgvector)]
+  API -->|publish job| Q{Queue backend}
+  Q -->|celery| Redis[(Memorystore Redis)]
+  Q -->|pubsub| PS[(Pub/Sub topic)]
+  Redis --> Worker[Worker Cloud Run]
+  PS --> Worker
+  Worker --> SQL
+  Worker --> GCS
+```
 
 ---
 
@@ -75,11 +90,15 @@ Key outputs to capture:
 At minimum, configure the following environment variables/secrets on API and worker services:
 
 - `DATABASE_URL` (Cloud SQL Postgres DSN)
-- `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` (Redis)
+- `QUEUE_BACKEND` (`celery` or `pubsub`)
+- `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` (Redis when using celery)
 - `STORAGE_BACKEND=gcs`
 - `GCS_BUCKET=<media-bucket>`
-- `GOOGLE_CLOUD_PROJECT=<project-id>`
+- `GCP_PROJECT_ID=<project-id>`
+- `GCP_REGION=<region>`
+- `PUBSUB_TOPIC_NAME`, `PUBSUB_SUBSCRIPTION_NAME` (when using pubsub)
 - Provider controls (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `TRANSCRIPTION_PROVIDER`)
+- `PGVECTOR_ENABLED=true` and `SEMANTIC_SEARCH_BACKEND=auto` with pgvector enabled on Cloud SQL
 
 Frontend requires:
 
@@ -142,7 +161,22 @@ gcloud run services logs read cinetag-worker --region us-central1 --limit 100
 
 ---
 
-## 9) Operational recommendations
+## 9) Migration and rollback
+
+### Apply sequence
+
+1. `terraform apply` to provision VPC, private Cloud SQL, Redis network, and Pub/Sub.
+2. Run DB migration to add pgvector columns/index.
+3. Deploy API + worker with new queue environment variables.
+4. Keep `QUEUE_BACKEND=celery` initially; switch to `pubsub` only after topic/subscription and consumer readiness are verified.
+
+### Rollback plan
+
+- Set `SEMANTIC_SEARCH_BACKEND=python` to bypass pgvector query path.
+- Set `QUEUE_BACKEND=celery` to revert dispatch to Redis/Celery.
+- Re-deploy previous container images if needed.
+
+## 10) Operational recommendations
 
 - Set Cloud Monitoring alerts for API p95 latency, worker error rate, and queue depth.
 - Separate API and worker min/max instances to independently tune cost/performance.

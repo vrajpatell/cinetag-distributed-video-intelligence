@@ -4,7 +4,8 @@ locals {
     "roles/storage.objectAdmin",
     "roles/secretmanager.secretAccessor",
     "roles/logging.logWriter",
-    "roles/monitoring.metricWriter"
+    "roles/monitoring.metricWriter",
+    "roles/vpcaccess.user"
   ]
 }
 

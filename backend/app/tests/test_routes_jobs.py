@@ -50,7 +50,7 @@ def test_retry_job_404_when_missing(client):
 def test_retry_job_increments_count_and_resets_status(client, db_session):
     job = _seed_failed_job(db_session)
 
-    with patch.object(routes_jobs.run_pipeline, "delay") as delayed:
+    with patch.object(routes_jobs, "publish_processing_job") as delayed:
         res = client.post(f"/api/jobs/{job.id}/retry")
 
     assert res.status_code == 200, res.text
@@ -75,8 +75,8 @@ def test_retry_job_returns_503_when_broker_offline(client, db_session):
     job = _seed_failed_job(db_session)
 
     with patch.object(
-        routes_jobs.run_pipeline,
-        "delay",
+        routes_jobs,
+        "publish_processing_job",
         side_effect=RuntimeError("redis broker offline"),
     ):
         res = client.post(f"/api/jobs/{job.id}/retry")

@@ -1,7 +1,14 @@
 from datetime import datetime
 from sqlalchemy import String, Float, Integer, DateTime, ForeignKey, Text, JSON
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
+
+try:
+    from pgvector.sqlalchemy import Vector
+except Exception:  # pragma: no cover - used in minimal test envs without pgvector
+    Vector = None
+
+_EMBEDDING_VECTOR_TYPE = Vector(1536) if Vector is not None else JSON
 
 class VideoAsset(Base):
     __tablename__ = "video_assets"
@@ -92,6 +99,12 @@ class EmbeddingRecord(Base):
     entity_type: Mapped[str] = mapped_column(String(64))
     entity_id: Mapped[int] = mapped_column(Integer)
     embedding: Mapped[list[float]] = mapped_column(JSON)
+    embedding_vector: Mapped[list[float] | None] = mapped_column(
+        _EMBEDDING_VECTOR_TYPE, nullable=True
+    )
+    embedding_model: Mapped[str | None] = mapped_column(String(128))
+    embedding_provider: Mapped[str | None] = mapped_column(String(64))
+    embedding_dimension: Mapped[int | None] = mapped_column(Integer)
     text: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 

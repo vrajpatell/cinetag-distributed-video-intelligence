@@ -4,21 +4,25 @@ resource "random_password" "db" {
 }
 
 resource "google_sql_database_instance" "postgres" {
-  name             = var.cloud_sql_instance
-  region           = var.region
-  database_version = "POSTGRES_15"
+  name                = var.cloud_sql_instance
+  region              = var.region
+  database_version    = "POSTGRES_15"
+  deletion_protection = var.deletion_protection
 
   settings {
-    tier = "db-f1-micro"
+    tier = var.cloud_sql_tier
 
     backup_configuration {
       enabled = true
     }
 
     ip_configuration {
-      ipv4_enabled = true
+      ipv4_enabled    = false
+      private_network = google_compute_network.main.id
     }
   }
+
+  depends_on = [google_service_networking_connection.private_vpc_connection]
 }
 
 resource "google_sql_database" "db" {

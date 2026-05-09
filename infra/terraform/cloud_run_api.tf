@@ -6,6 +6,10 @@ resource "google_cloud_run_v2_service" "api" {
   template {
     service_account = google_service_account.api.email
     timeout         = "900s"
+    vpc_access {
+      connector = google_vpc_access_connector.serverless.id
+      egress    = "PRIVATE_RANGES_ONLY"
+    }
 
     containers {
       image = var.api_image
@@ -28,6 +32,26 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "REDIS_URL"
         value = "redis://${google_redis_instance.main.host}:6379/0"
+      }
+      env {
+        name  = "QUEUE_BACKEND"
+        value = var.queue_backend
+      }
+      env {
+        name  = "PUBSUB_TOPIC_NAME"
+        value = var.pubsub_topic_name
+      }
+      env {
+        name  = "PUBSUB_SUBSCRIPTION_NAME"
+        value = var.pubsub_subscription_name
+      }
+      env {
+        name  = "GCP_PROJECT_ID"
+        value = var.project_id
+      }
+      env {
+        name  = "GCP_REGION"
+        value = var.region
       }
 
       env {

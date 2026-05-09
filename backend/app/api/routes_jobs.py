@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models import ProcessingJob, ProcessingStageRun, VideoAsset
 from app.db.session import get_db
-from app.workers.tasks import run_pipeline
+from app.queue.publisher import publish_processing_job
 
 router = APIRouter(prefix='/jobs')
 logger = logging.getLogger(__name__)
@@ -112,15 +112,15 @@ def retry_job(job_id: int, db: Session = Depends(get_db)):
     db.refresh(job)
 
     try:
-        run_pipeline.delay(job_id)
+        publish_processing_job(job_id)
     except Exception:
         logger.warning(
-            'retry_job_broker_unavailable job_id=%s; row reset but task not enqueued',
+            'retry_job_publish_unavailable job_id=%s; row reset but task not enqueued',
             job_id,
         )
         raise HTTPException(
             status_code=503,
-            detail='Retry recorded but the worker queue is unavailable. The job will be picked up when the queue recovers.',
+            detail='Retry recorded but queue dispatch is unavailable. Please retry shortly.',
         )
 
     logger.info(

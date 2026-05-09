@@ -15,6 +15,7 @@ from app.api import (
 )
 from app.core.config import settings
 from app.core.secrets import preload_known_secrets
+from app.db.session import engine
 
 preload_known_secrets()
 logging.basicConfig(level=settings.log_level)
@@ -35,3 +36,19 @@ app.include_router(routes_tags.router, prefix='/api')
 app.include_router(routes_search.router, prefix='/api')
 app.include_router(routes_review.router, prefix='/api')
 app.include_router(routes_metrics.router)
+
+if settings.otel_enabled:
+    try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+        FastAPIInstrumentor.instrument_app(app)
+        logging.getLogger(__name__).info("otel_fastapi_instrumented")
+    except Exception:
+        logging.getLogger(__name__).warning("otel_fastapi_instrumentation_unavailable")
+    try:
+        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+
+        SQLAlchemyInstrumentor().instrument(engine=engine)
+        logging.getLogger(__name__).info("otel_sqlalchemy_instrumented")
+    except Exception:
+        logging.getLogger(__name__).warning("otel_sqlalchemy_instrumentation_unavailable")
