@@ -5,13 +5,39 @@ that exist on the SQLAlchemy models but are missing in the database.
 
 Safe to run multiple times. Does NOT drop or rename anything.
 """
+import logging
+
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import ProgrammingError
 
 from app.db.models import Base
 from app.db.session import engine
 
+logger = logging.getLogger(__name__)
+
+
+def _ensure_pgvector(conn) -> None:
+    """Enable the pgvector extension if missing.
+
+    On Cloud SQL Postgres the application user is usually not a superuser, so
+    this will fail with InsufficientPrivilege. That's OK as long as a DB admin
+    has already run ``CREATE EXTENSION vector`` once as the postgres user — the
+    extension only needs to be created once per database.
+    """
+    try:
+        conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+    except ProgrammingError as exc:
+        logger.warning(
+            "Could not CREATE EXTENSION vector (%s). "
+            "Run it once as the postgres superuser if pgvector columns are needed.",
+            exc.orig.__class__.__name__,
+        )
+
 
 def main() -> int:
+    with engine.begin() as conn:
+        _ensure_pgvector(conn)
+
     Base.metadata.create_all(bind=engine)
 
     inspector = inspect(engine)
