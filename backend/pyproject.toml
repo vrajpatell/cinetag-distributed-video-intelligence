@@ -34,6 +34,10 @@ test = [
   "pytest>=8.0",
   "pytest-asyncio>=0.23"
 ]
+[tool.setuptools.packages.find]
+include = ["app*"]
+exclude = ["alembic*", "scripts*", "tests*"]
+
 [tool.ruff]
 line-length = 100
 [tool.pytest.ini_options]
