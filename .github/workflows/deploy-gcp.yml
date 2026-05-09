@@ -1,0 +1,180 @@
+name: deploy-gcp
+
+# Triggers a full build + deploy on every push to main, plus a manual button.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION }}
+  REPOSITORY: ${{ vars.GCP_ARTIFACT_REPO }}
+  API_SERVICE: cinetag-api
+  WORKER_SERVICE: cinetag-worker
+  FRONTEND_SERVICE: cinetag-frontend
+  MIGRATE_JOB: cinetag-migrate
+
+# Workload Identity Federation needs id-token; contents:read for actions/checkout.
+permissions:
+  contents: read
+  id-token: write
+
+# Cancel in-flight runs of the same workflow on the same ref.
+concurrency:
+  group: deploy-gcp-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1) Lint + unit tests. Gates everything else.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Lint & test (backend)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install backend + dev tools
+        run: pip install -e ./backend pytest ruff
+      - name: Ruff lint
+        working-directory: backend
+        run: ruff check app
+      - name: Pytest
+        working-directory: backend
+        run: pytest -q
+
+  # ---------------------------------------------------------------------------
+  # 2) Build all three images via Cloud Build, tag with :latest and :<sha>.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build & push images (Cloud Build)
+    needs: test
+    runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: tag
+        name: Compute image tag (short SHA)
+        run: echo "tag=sha-${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - id: auth
+        name: Authenticate to GCP (Workload Identity Federation)
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Submit Cloud Build (build + push api/worker/frontend)
+        run: |
+          gcloud builds submit \
+            --config cloudbuild.yaml \
+            --substitutions=_PROJECT_ID=${PROJECT_ID},_REGION=${REGION},_REPOSITORY=${REPOSITORY},_IMAGE_TAG=${{ steps.tag.outputs.tag }} \
+            .
+
+  # ---------------------------------------------------------------------------
+  # 3) Run DB migrations via the existing Cloud Run job.
+  #    Pin the job to the new API image so migration code matches the deploy.
+  # ---------------------------------------------------------------------------
+  migrate:
+    name: Run DB migrations
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Update migration job to new image
+        run: |
+          gcloud run jobs update ${MIGRATE_JOB} \
+            --region ${REGION} \
+            --image ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/cinetag-api:${{ needs.build.outputs.image_tag }}
+
+      - name: Execute migration job (wait for completion)
+        run: |
+          gcloud run jobs execute ${MIGRATE_JOB} \
+            --region ${REGION} \
+            --wait
+
+  # ---------------------------------------------------------------------------
+  # 4) Deploy the three Cloud Run services in parallel to the new image tag.
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy ${{ matrix.service.name }}
+    needs: [build, migrate]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - { name: api,      cloud_run: cinetag-api,      image: cinetag-api      }
+          - { name: worker,   cloud_run: cinetag-worker,   image: cinetag-worker   }
+          - { name: frontend, cloud_run: cinetag-frontend, image: cinetag-frontend }
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Deploy ${{ matrix.service.cloud_run }} to Cloud Run
+        run: |
+          gcloud run services update ${{ matrix.service.cloud_run }} \
+            --region ${REGION} \
+            --image ${REGION}-docker.pkg.dev/${PROJECT_ID}/${REPOSITORY}/${{ matrix.service.image }}:${{ needs.build.outputs.image_tag }}
+
+  # ---------------------------------------------------------------------------
+  # 5) Smoke test API health after rollout.
+  # ---------------------------------------------------------------------------
+  smoke:
+    name: Smoke test API
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOYER_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Resolve API URL
+        id: url
+        run: |
+          API_URL=$(gcloud run services describe ${API_SERVICE} \
+            --region ${REGION} --format='value(status.url)')
+          echo "api_url=${API_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: GET /health
+        run: |
+          set -e
+          for i in 1 2 3 4 5; do
+            if curl -fsS "${{ steps.url.outputs.api_url }}/health"; then
+              exit 0
+            fi
+            echo "Health check attempt $i failed; retrying in 5s..."
+            sleep 5
+          done
+          echo "Health check failed after 5 attempts"
+          exit 1

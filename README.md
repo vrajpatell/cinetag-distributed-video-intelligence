@@ -333,6 +333,14 @@ Database schema migrations use **Alembic**; see `backend/alembic/` and scripts r
 
 ## 16. GCP deployment
 
+### Automated (GitHub Actions → GCP)
+
+Every push to `main` triggers the [`deploy-gcp`](.github/workflows/deploy-gcp.yml) workflow, which lints + tests, builds all three images via Cloud Build (tagging with both `:latest` and `:sha-<commit>`), runs the `cinetag-migrate` Cloud Run job, deploys the new image to `cinetag-api` / `cinetag-worker` / `cinetag-frontend` in parallel, and smoke-tests `/health`. Authentication uses **Workload Identity Federation** — no JSON keys are stored in GitHub.
+
+One-time setup (deployer service account, WIF pool/provider, GitHub secrets/vars) is documented step-by-step in [`docs/cicd-github-actions-gcp.md`](docs/cicd-github-actions-gcp.md).
+
+### Manual
+
 Build and push images (e.g. Cloud Build `cloudbuild.yaml`) and deploy three Cloud Run services: **`cinetag-api`**, **`cinetag-worker`**, **`cinetag-frontend`**.
 
 **Critical:** `NEXT_PUBLIC_*` variables are **inlined at build time** in Next.js. The frontend image **must** receive the public API URL as a **build arg**, for example:
@@ -387,6 +395,7 @@ Authoritative defaults and types live in `backend/app/core/config.py`.
 | Document | Contents |
 |----------|----------|
 | [`docs/deploy-gcp-cloud-run.md`](docs/deploy-gcp-cloud-run.md) | Terraform, Cloud Run, migration order, rollback |
+| [`docs/cicd-github-actions-gcp.md`](docs/cicd-github-actions-gcp.md) | Step-by-step GitHub Actions → GCP CI/CD setup (Workload Identity Federation) |
 | [`docs/ai-video-capabilities-and-processing-flow.md`](docs/ai-video-capabilities-and-processing-flow.md) | Deep dive on AI stages, upload, storage, APIs |
 | [`docs/production-hardening-plan.md`](docs/production-hardening-plan.md) | Production-hardening scope and checklist |
 | [`docs/gcp-architecture.md`](docs/gcp-architecture.md) | GCP architecture narrative |

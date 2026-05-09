@@ -2,14 +2,40 @@ substitutions:
   _PROJECT_ID: cinetag-distributed-video
   _REGION: us-central1
   _REPOSITORY: cinetag-containers
+  # Override per build (CI passes the commit SHA). Defaults to "latest" so manual
+  # `gcloud builds submit` invocations still work.
+  _IMAGE_TAG: latest
   # Baked into the Next.js client bundle at build time (runtime Cloud Run env is not enough).
   _NEXT_PUBLIC_API_BASE_URL: https://cinetag-api-1015789800459.us-central1.run.app
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
 steps:
-- name: gcr.io/cloud-builders/docker
-  args: ['build','-t','${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-api:latest','./backend']
-- name: gcr.io/cloud-builders/docker
-  args: ['build','-t','${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-worker:latest','./backend']
-- name: gcr.io/cloud-builders/docker
+# ---- Build (each image tagged with both :latest and :${_IMAGE_TAG}) ----
+- id: build-api
+  name: gcr.io/cloud-builders/docker
+  args:
+    - build
+    - -t
+    - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-api:latest
+    - -t
+    - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-api:${_IMAGE_TAG}
+    - ./backend
+
+- id: build-worker
+  name: gcr.io/cloud-builders/docker
+  args:
+    - build
+    - -t
+    - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-worker:latest
+    - -t
+    - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-worker:${_IMAGE_TAG}
+    - ./backend
+
+- id: build-frontend
+  name: gcr.io/cloud-builders/docker
   args:
     - build
     - --build-arg
@@ -18,10 +44,15 @@ steps:
     - NEXT_PUBLIC_APP_ENV=gcp
     - -t
     - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-frontend:latest
+    - -t
+    - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-frontend:${_IMAGE_TAG}
     - ./frontend
-- name: gcr.io/cloud-builders/docker
-  args: ['push','${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-api:latest']
-- name: gcr.io/cloud-builders/docker
-  args: ['push','${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-worker:latest']
-- name: gcr.io/cloud-builders/docker
-  args: ['push','${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-frontend:latest']
+
+# ---- Push every tag we just produced ----
+images:
+  - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-api:latest
+  - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-api:${_IMAGE_TAG}
+  - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-worker:latest
+  - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-worker:${_IMAGE_TAG}
+  - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-frontend:latest
+  - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-frontend:${_IMAGE_TAG}
