@@ -4,6 +4,7 @@ import JobStatusBadge from '@/components/JobStatusBadge';
 import JobTimeline from '@/components/JobTimeline';
 import PublishVideoButton from '@/components/PublishVideoButton';
 import RecommendationRail from '@/components/RecommendationRail';
+import VideoPlayer from '@/components/VideoPlayer';
 import { safeFetch } from '@/lib/api';
 import { DEMO_JOBS, DEMO_VIDEOS, findDemoVideo, gradientForId } from '@/lib/demo-data';
 import { formatBitsPerSecond, formatBytes, formatDuration, formatRelativeTime } from '@/lib/format';
@@ -34,6 +35,14 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
 
   const grad = video.thumbnailGradient || gradientForId(video.id);
   const tagSummary = tags.slice(0, 6);
+  // Only attempt real playback when this is a backend-backed asset whose
+  // pipeline has progressed past the upload stage. Demo rows have no media
+  // object behind them, so the player would just hit a 409.
+  const playbackEnabled =
+    !isDemo &&
+    !!video.storage_key &&
+    video.status !== 'upload_pending' &&
+    video.status !== 'failed';
   // Prefer the first-class LLM summary, fall back to the older description
   // string, and only then surface placeholder copy. This keeps detail pages
   // accurate when the pipeline has produced a real summary.
@@ -53,32 +62,62 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
       </nav>
 
       <section className="panel-strong relative overflow-hidden">
-        <div className={`relative aspect-[21/9] w-full ${grad}`}>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/30" />
-          <div className="absolute right-4 top-4 flex flex-wrap gap-1.5">
-            {video.status ? <JobStatusBadge status={String(video.status)} /> : null}
-            {video.processingStage ? <JobStatusBadge stage={String(video.processingStage)} /> : null}
-            {isDemo ? <span className="chip-neutral">demo</span> : null}
-          </div>
-          <div className="absolute inset-x-6 bottom-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div className="max-w-3xl">
-              <h1 className="text-balance text-3xl font-extrabold tracking-tight md:text-5xl">
-                {video.title || `Video #${id}`}
-              </h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/70">
-                {video.duration_seconds != null ? <span>{formatDuration(video.duration_seconds)}</span> : null}
-                {video.width && video.height ? <span>{video.width}×{video.height}</span> : null}
-                {video.codec ? <span className="font-mono">{video.codec}</span> : null}
-                {video.bitrate ? <span>{formatBitsPerSecond(video.bitrate / 8)}</span> : null}
-                {video.file_size_bytes ? <span>{formatBytes(video.file_size_bytes)}</span> : null}
+        {playbackEnabled ? (
+          <div className="space-y-4 p-4 md:p-5">
+            <VideoPlayer videoId={video.id} title={video.title || `Video #${id}`} />
+            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div className="max-w-3xl">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {video.status ? <JobStatusBadge status={String(video.status)} /> : null}
+                  {video.processingStage ? (
+                    <JobStatusBadge stage={String(video.processingStage)} />
+                  ) : null}
+                </div>
+                <h1 className="mt-2 text-balance text-3xl font-extrabold tracking-tight md:text-5xl">
+                  {video.title || `Video #${id}`}
+                </h1>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/70">
+                  {video.duration_seconds != null ? <span>{formatDuration(video.duration_seconds)}</span> : null}
+                  {video.width && video.height ? <span>{video.width}×{video.height}</span> : null}
+                  {video.codec ? <span className="font-mono">{video.codec}</span> : null}
+                  {video.bitrate ? <span>{formatBitsPerSecond(video.bitrate / 8)}</span> : null}
+                  {video.file_size_bytes ? <span>{formatBytes(video.file_size_bytes)}</span> : null}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link href="/jobs" className="btn-secondary">View pipeline jobs</Link>
+                <Link href="/search" className="btn-primary">Find similar</Link>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Link href="/jobs" className="btn-secondary">View pipeline jobs</Link>
-              <Link href="/search" className="btn-primary">Find similar</Link>
+          </div>
+        ) : (
+          <div className={`relative aspect-[21/9] w-full ${grad}`}>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-black/30" />
+            <div className="absolute right-4 top-4 flex flex-wrap gap-1.5">
+              {video.status ? <JobStatusBadge status={String(video.status)} /> : null}
+              {video.processingStage ? <JobStatusBadge stage={String(video.processingStage)} /> : null}
+              {isDemo ? <span className="chip-neutral">demo</span> : null}
+            </div>
+            <div className="absolute inset-x-6 bottom-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div className="max-w-3xl">
+                <h1 className="text-balance text-3xl font-extrabold tracking-tight md:text-5xl">
+                  {video.title || `Video #${id}`}
+                </h1>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] text-white/70">
+                  {video.duration_seconds != null ? <span>{formatDuration(video.duration_seconds)}</span> : null}
+                  {video.width && video.height ? <span>{video.width}×{video.height}</span> : null}
+                  {video.codec ? <span className="font-mono">{video.codec}</span> : null}
+                  {video.bitrate ? <span>{formatBitsPerSecond(video.bitrate / 8)}</span> : null}
+                  {video.file_size_bytes ? <span>{formatBytes(video.file_size_bytes)}</span> : null}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link href="/jobs" className="btn-secondary">View pipeline jobs</Link>
+                <Link href="/search" className="btn-primary">Find similar</Link>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </section>
 
       <section className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr,360px]">

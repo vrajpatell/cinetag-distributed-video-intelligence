@@ -2,6 +2,7 @@ import type {
   JobSummary,
   ReviewItem,
   SearchResult,
+  VideoPlaybackResponse,
   VideoSummary,
 } from './types';
 
@@ -129,6 +130,12 @@ export async function getVideoTags(id: string | number) {
 
 export async function getVideoTranscript(id: string | number) {
   return apiFetch<unknown>(`/api/videos/${id}/transcript`);
+}
+
+export async function getVideoPlayback(
+  id: string | number,
+): Promise<VideoPlaybackResponse> {
+  return apiFetch<VideoPlaybackResponse>(`/api/videos/${id}/playback`);
 }
 
 export async function getJobs(): Promise<JobSummary[]> {

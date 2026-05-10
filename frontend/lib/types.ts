@@ -122,6 +122,15 @@ export interface SearchResult {
   isDemo?: boolean;
 }
 
+export interface VideoPlaybackResponse {
+  url: string;
+  content_type: string;
+  expires_in_seconds: number;
+  poster_url?: string | null;
+  duration_seconds?: number | null;
+  file_size_bytes?: number | null;
+}
+
 export interface PlatformMetric {
   label: string;
   value: string;
