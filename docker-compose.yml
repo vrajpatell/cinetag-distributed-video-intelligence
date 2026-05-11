@@ -19,7 +19,7 @@ services:
     depends_on: [postgres,redis]
   worker:
     build: ./backend
-    command: celery -A app.workers.tasks.celery worker -l info
+    command: python -m app.workers.worker_main
     depends_on: [backend,redis]
   frontend:
     image: node:20

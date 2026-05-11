@@ -2,13 +2,17 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy import exists
 from sqlalchemy.orm import Session
 
+from app.api.pagination import paginate_sa_query
+from app.core.auth import RequireReviewerOrAdmin
 from app.core.config import settings
 from app.db.models import (
     AuditLog,
@@ -114,8 +118,59 @@ def _serialize_video(video: VideoAsset, db: Session) -> dict[str, Any]:
 
 
 @router.get("")
-def list_videos(db: Session = Depends(get_db)):
-    return [_serialize_video(video, db) for video in db.query(VideoAsset).all()]
+def list_videos(
+    db: Session = Depends(get_db),
+    page: int | None = Query(default=None, ge=1),
+    page_size: int | None = Query(default=None, ge=1),
+    status: str | None = None,
+    genre: str | None = None,
+    mood: str | None = None,
+    created_after: str | None = None,
+    created_before: str | None = None,
+    title_contains: str | None = None,
+):
+    q = db.query(VideoAsset)
+    if status:
+        q = q.filter(VideoAsset.status == status)
+    if title_contains:
+        q = q.filter(VideoAsset.title.ilike(f"%{title_contains}%"))
+    if created_after:
+        try:
+            dt = datetime.fromisoformat(created_after.replace("Z", "+00:00"))
+            q = q.filter(VideoAsset.created_at >= dt)
+        except ValueError:
+            raise HTTPException(400, detail="invalid created_after datetime") from None
+    if created_before:
+        try:
+            dt = datetime.fromisoformat(created_before.replace("Z", "+00:00"))
+            q = q.filter(VideoAsset.created_at <= dt)
+        except ValueError:
+            raise HTTPException(400, detail="invalid created_before datetime") from None
+    if genre:
+        q = q.filter(
+            exists().where(
+                GeneratedTag.video_id == VideoAsset.id,
+                GeneratedTag.tag_type == "genre",
+                GeneratedTag.tag_value == genre,
+            )
+        )
+    if mood:
+        q = q.filter(
+            exists().where(
+                GeneratedTag.video_id == VideoAsset.id,
+                GeneratedTag.tag_type == "mood",
+                GeneratedTag.tag_value == mood,
+            )
+        )
+    q = q.order_by(VideoAsset.id.desc())
+    raw = paginate_sa_query(q, page=page, page_size=page_size)
+    return {
+        "items": [_serialize_video(v, db) for v in raw["items"]],
+        "page": raw["page"],
+        "page_size": raw["page_size"],
+        "total": raw["total"],
+        "has_next": raw["has_next"],
+    }
 
 
 @router.get("/{video_id}")
@@ -147,7 +202,11 @@ def tags(video_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{video_id}/publish")
-def publish_video(video_id: int, db: Session = Depends(get_db)):
+def publish_video(
+    video_id: int,
+    _auth: RequireReviewerOrAdmin,
+    db: Session = Depends(get_db),
+):
     """Mark a reviewed video as published.
 
     Requires that no auto-generated tags are still in pending_review and

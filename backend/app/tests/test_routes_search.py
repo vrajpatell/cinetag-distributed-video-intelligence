@@ -11,8 +11,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
-from unittest.mock import patch
-
 from app.db.models import EmbeddingRecord, GeneratedTag, VideoAsset
 from app.api.routes_search import Query, semantic
 
@@ -139,10 +137,12 @@ def test_semantic_search_filters_still_work(client, db_session):
     assert res.json()[0]["title"] == "Noir A"
 
 
-def test_semantic_search_python_fallback_when_pgvector_disabled(client, db_session):
-    from app.api import routes_search
+def test_semantic_search_python_fallback_when_pgvector_disabled(client, db_session, monkeypatch):
+    from app.core.config import get_settings
     from app.ml.providers import embed_text
 
+    monkeypatch.setenv("SEMANTIC_SEARCH_BACKEND", "python")
+    get_settings.cache_clear()
     target = embed_text("mystery")
     _seed_video_with_embedding(
         db_session,
@@ -151,14 +151,27 @@ def test_semantic_search_python_fallback_when_pgvector_disabled(client, db_sessi
         embedding=target,
     )
 
-    with patch.object(
-        routes_search.settings,
-        "semantic_search_backend",
-        "python",
-    ):
-        res = client.post("/api/search/semantic", json={"query": "mystery"})
+    res = client.post("/api/search/semantic", json={"query": "mystery"})
     assert res.status_code == 200
     assert res.json()
+
+
+def test_semantic_search_pgvector_forced_rejects_dimension_mismatch(client, db_session, monkeypatch):
+    from app.core.config import get_settings
+    from app.ml.providers import embed_text
+
+    monkeypatch.setenv("SEMANTIC_SEARCH_BACKEND", "pgvector")
+    get_settings.cache_clear()
+    target = embed_text("any")
+    assert len(target) != 1536
+    _seed_video_with_embedding(
+        db_session,
+        title="X",
+        storage_key="originals/x/x.mp4",
+        embedding=target,
+    )
+    res = client.post("/api/search/semantic", json={"query": "any"})
+    assert res.status_code == 400
 
 
 def test_semantic_search_pgvector_mode_does_not_use_full_scan(monkeypatch):
@@ -242,11 +255,16 @@ def test_semantic_search_pgvector_mode_does_not_use_full_scan(monkeypatch):
             raise AssertionError("Unexpected query signature")
 
     monkeypatch.setattr(routes_search, "embed_text", lambda _text: [0.1] * 1536)
-    monkeypatch.setattr(routes_search, "settings", SimpleNamespace(
-        semantic_search_backend="pgvector",
-        pgvector_enabled=True,
-        app_env="local",
-    ))
+    monkeypatch.setattr(
+        routes_search,
+        "settings",
+        SimpleNamespace(
+            semantic_search_backend="pgvector",
+            pgvector_enabled=True,
+            app_env="local",
+            embedding_vector_dimension=1536,
+        ),
+    )
     monkeypatch.setattr(routes_search.EmbeddingRecord, "embedding_vector", _PgVectorField())
 
     fake_db = _FakeSession()

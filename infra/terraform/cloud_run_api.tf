@@ -1,7 +1,7 @@
 resource "google_cloud_run_v2_service" "api" {
   name     = "cinetag-api"
   location = var.region
-  ingress  = "INGRESS_TRAFFIC_ALL"
+  ingress  = var.api_ingress
 
   template {
     service_account = google_service_account.api.email
@@ -57,6 +57,61 @@ resource "google_cloud_run_v2_service" "api" {
       env {
         name  = "CLOUD_SQL_CONNECTION_NAME"
         value = google_sql_database_instance.postgres.connection_name
+      }
+
+      env {
+        name  = "SECRET_MANAGER_ENABLED"
+        value = var.secret_manager_enabled ? "true" : "false"
+      }
+
+      env {
+        name  = "AUTH_ENABLED"
+        value = var.auth_enabled ? "true" : "false"
+      }
+
+      env {
+        name  = "SEMANTIC_SEARCH_BACKEND"
+        value = var.semantic_search_backend
+      }
+
+      env {
+        name = "DATABASE_PASSWORD"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.database_password.secret_id
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name = "OPENAI_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.openai_api_key.secret_id
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name = "ADMIN_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.admin_api_key.secret_id
+            version = "latest"
+          }
+        }
+      }
+
+      env {
+        name = "REVIEWER_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.reviewer_api_key.secret_id
+            version = "latest"
+          }
+        }
       }
 
       ports {

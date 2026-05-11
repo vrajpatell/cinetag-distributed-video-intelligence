@@ -6,7 +6,7 @@ import PipelineFlow from '@/components/PipelineFlow';
 import ArchitecturePanel from '@/components/ArchitecturePanel';
 import { safeFetch } from '@/lib/api';
 import { DEMO_METRICS, DEMO_VIDEOS } from '@/lib/demo-data';
-import type { VideoSummary } from '@/lib/types';
+import type { Paginated, VideoSummary } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -30,9 +30,21 @@ function buildMetrics(real: VideoSummary[]): typeof DEMO_METRICS {
   ];
 }
 
+const emptyVideoPage: Paginated<VideoSummary> = {
+  items: [],
+  page: 1,
+  page_size: 20,
+  total: 0,
+  has_next: false,
+};
+
 export default async function Home() {
-  const real = await safeFetch<VideoSummary[]>('/api/videos', []);
-  const usingDemo = !Array.isArray(real) || real.length === 0;
+  const raw = await safeFetch<Paginated<VideoSummary>>(
+    '/api/videos?page_size=100',
+    emptyVideoPage,
+  );
+  const real = raw?.items ?? [];
+  const usingDemo = real.length === 0;
   const videos: VideoSummary[] = usingDemo ? DEMO_VIDEOS : real;
 
   const recently = [...videos].sort((a, b) =>

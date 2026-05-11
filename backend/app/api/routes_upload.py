@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.auth import RequireAdminOrService
 from app.core.config import settings
 from app.db.models import ProcessingJob, VideoAsset
 from app.db.session import get_db
@@ -175,6 +176,7 @@ class UploadInitResponse:
 
 @router.post("/uploads/init")
 def init_direct_upload(
+    _auth: RequireAdminOrService,
     payload: UploadInitRequest,
     request: Request,
     db: Session = Depends(get_db),
@@ -279,6 +281,7 @@ async def local_direct_put(storage_key: str, request: Request) -> Response:
 
 @router.post("/uploads/complete")
 def complete_direct_upload(
+    _auth: RequireAdminOrService,
     payload: UploadCompleteRequest,
     db: Session = Depends(get_db),
 ):
@@ -377,6 +380,7 @@ def complete_direct_upload(
 
 @router.post("/videos/upload", deprecated=True)
 async def upload_video(
+    _auth: RequireAdminOrService,
     file: UploadFile = File(...),
     title: str | None = Form(None),
     db: Session = Depends(get_db),

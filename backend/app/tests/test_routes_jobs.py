@@ -31,10 +31,14 @@ def _seed_failed_job(db) -> ProcessingJob:
     return j
 
 
-def test_list_jobs_returns_array(client):
+def test_list_jobs_returns_paginated_payload(client):
     res = client.get("/api/jobs")
     assert res.status_code == 200
-    assert isinstance(res.json(), list)
+    body = res.json()
+    assert "items" in body
+    assert "page" in body
+    assert "total" in body
+    assert isinstance(body["items"], list)
 
 
 def test_get_job_returns_404_when_missing(client):

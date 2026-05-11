@@ -22,9 +22,9 @@ export default function JobsPage() {
 
   const load = useCallback(async () => {
     try {
-      const real = await getJobs();
-      if (Array.isArray(real) && real.length > 0) {
-        setJobs(real);
+      const real = await getJobs({ page_size: 100 });
+      if (real.items.length > 0) {
+        setJobs(real.items);
         setUsedDemo(false);
       } else {
         setJobs(DEMO_JOBS);

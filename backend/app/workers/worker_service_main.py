@@ -10,8 +10,11 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from app.core.config import settings
-from app.core.secrets import preload_known_secrets
+from app.bootstrap import ensure_preload
+
+ensure_preload()
+
+from app.core.config import settings  # noqa: E402
 
 logging.basicConfig(level=settings.log_level)
 logger = logging.getLogger(__name__)
@@ -19,9 +22,9 @@ logger = logging.getLogger(__name__)
 
 def _worker_command() -> list[str]:
     """Subprocess argv for the long-running job executor (Celery vs Pub/Sub)."""
-    if settings.queue_backend == 'pubsub':
-        return ['python', '-m', 'app.workers.pubsub_consumer']
-    return ['python', '-m', 'app.workers.worker_main']
+    if settings.queue_backend == "pubsub":
+        return ["python", "-m", "app.workers.pubsub_consumer"]
+    return ["python", "-m", "app.workers.worker_main"]
 
 
 class WorkerRuntime:
@@ -37,8 +40,8 @@ class WorkerRuntime:
                 return
             cmd = _worker_command()
             logger.info(
-                'starting background worker process',
-                extra={'queue_backend': settings.queue_backend, 'argv': cmd},
+                "starting background worker process",
+                extra={"queue_backend": settings.queue_backend, "argv": cmd},
             )
             self._process = subprocess.Popen(
                 cmd,
@@ -78,33 +81,33 @@ class WorkerRuntime:
         if proc is None:
             return
 
-        logger.info('stopping background worker process')
+        logger.info("stopping background worker process")
         if proc.poll() is None:
             proc.terminate()
             try:
                 proc.wait(timeout=20)
             except subprocess.TimeoutExpired:
-                logger.warning('worker process did not exit in time; killing')
+                logger.warning("worker process did not exit in time; killing")
                 proc.kill()
                 proc.wait(timeout=5)
-        logger.info('worker process exited', extra={'exit_code': proc.returncode})
+        logger.info("worker process exited", extra={"exit_code": proc.returncode})
 
 
 runtime = WorkerRuntime()
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title='cinetag-worker-health', docs_url=None, redoc_url=None, openapi_url=None)
+    app = FastAPI(title="cinetag-worker-health", docs_url=None, redoc_url=None, openapi_url=None)
 
-    @app.get('/health')
+    @app.get("/health")
     def health() -> dict[str, str]:
-        return {'status': 'ok'}
+        return {"status": "ok"}
 
-    @app.get('/ready')
+    @app.get("/ready")
     def ready() -> Any:
         if runtime.healthy():
-            return {'status': 'ok'}
-        return JSONResponse(status_code=503, content={'status': 'unhealthy'})
+            return {"status": "ok"}
+        return JSONResponse(status_code=503, content={"status": "unhealthy"})
 
     return app
 
@@ -113,28 +116,26 @@ app = create_app()
 
 
 def _shutdown_handler(signum: int, _frame: Any) -> None:
-    logger.info('received signal, shutting down worker service', extra={'signal': signum})
+    logger.info("received signal, shutting down worker service", extra={"signal": signum})
     runtime.stop()
 
 
 def main() -> None:
-    preload_known_secrets()
     runtime.start()
 
     signal.signal(signal.SIGTERM, _shutdown_handler)
     signal.signal(signal.SIGINT, _shutdown_handler)
     atexit.register(runtime.stop)
 
-    port = int(os.getenv('PORT', '8080'))
-    logger.info('starting worker health server', extra={'host': '0.0.0.0', 'port': port})
-    uvicorn.run(app, host='0.0.0.0', port=port, log_level=settings.log_level.lower())
+    port = int(os.getenv("PORT", "8080"))
+    logger.info("starting worker health server", extra={"host": "0.0.0.0", "port": port})
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level=settings.log_level.lower())
 
-    # If server exits, ensure worker is shutdown and propagate failure when worker crashed.
     exit_code = runtime.poll()
     runtime.stop()
     if exit_code not in (None, 0):
         raise SystemExit(exit_code)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

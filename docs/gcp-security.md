@@ -47,6 +47,7 @@ Primary risks:
 - Enforce idempotency and stage transition integrity.
 - Record immutable audit trails for tag review and publish actions.
 - Sanitize/validate any user-editable fields shown in UI.
+- Enable **`AUTH_ENABLED`** in production and store **`ADMIN_API_KEY`**, **`REVIEWER_API_KEY`**, and **`SERVICE_API_KEY`** in Secret Manager. Mutations require the `X-API-Key` header. Do not expose admin keys in public frontends; use a server-side proxy or operator tooling where possible.
 
 ## 7) Supply-chain and build security
 

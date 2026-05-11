@@ -21,3 +21,8 @@ output "redis_host" {
 output "artifact_registry_repo" {
   value = google_artifact_registry_repository.containers.id
 }
+
+output "media_cdn_backend_bucket" {
+  value       = try(google_compute_backend_bucket.media_cdn[0].id, null)
+  description = "Set when enable_cloud_cdn is true"
+}

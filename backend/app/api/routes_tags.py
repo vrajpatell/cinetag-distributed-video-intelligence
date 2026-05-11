@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.auth import RequireReviewerOrAdmin
 from app.db.models import AuditLog, GeneratedTag
 from app.db.session import get_db
 from app.observability.metrics import tags_approved, tags_rejected
@@ -21,7 +22,12 @@ class ManualTag(BaseModel):
 
 
 @router.patch("/tags/{tag_id}")
-def patch(tag_id: int, p: TagPatch, db: Session = Depends(get_db)):
+def patch(
+    tag_id: int,
+    _auth: RequireReviewerOrAdmin,
+    p: TagPatch,
+    db: Session = Depends(get_db),
+):
     t = db.get(GeneratedTag, tag_id)
     if not t:
         raise HTTPException(status_code=404, detail="Tag not found")
@@ -51,7 +57,12 @@ def patch(tag_id: int, p: TagPatch, db: Session = Depends(get_db)):
 
 
 @router.post("/videos/{video_id}/tags/manual")
-def manual(video_id: int, p: ManualTag, db: Session = Depends(get_db)):
+def manual(
+    video_id: int,
+    _auth: RequireReviewerOrAdmin,
+    p: ManualTag,
+    db: Session = Depends(get_db),
+):
     t = GeneratedTag(
         video_id=video_id,
         tag_type=p.tag_type,

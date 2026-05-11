@@ -4,22 +4,23 @@ import json
 import types
 from unittest.mock import patch
 
+from app.core.config import get_settings
 from app.queue.publisher import publish_processing_job
 from app.queue.pubsub_publisher import publish_pubsub_job
 
 
-def test_publish_processing_job_uses_celery_backend():
-    with patch("app.queue.publisher.settings.queue_backend", "celery"), patch(
-        "app.queue.publisher.publish_celery_job"
-    ) as publish_celery:
+def test_publish_processing_job_uses_celery_backend(monkeypatch):
+    monkeypatch.setenv("QUEUE_BACKEND", "celery")
+    get_settings.cache_clear()
+    with patch("app.queue.publisher.publish_celery_job") as publish_celery:
         publish_processing_job(42)
     publish_celery.assert_called_once_with(42)
 
 
-def test_publish_processing_job_uses_pubsub_backend():
-    with patch("app.queue.publisher.settings.queue_backend", "pubsub"), patch(
-        "app.queue.publisher.publish_pubsub_job"
-    ) as publish_pubsub:
+def test_publish_processing_job_uses_pubsub_backend(monkeypatch):
+    monkeypatch.setenv("QUEUE_BACKEND", "pubsub")
+    get_settings.cache_clear()
+    with patch("app.queue.publisher.publish_pubsub_job") as publish_pubsub:
         publish_processing_job(84)
     publish_pubsub.assert_called_once_with(84)
 
@@ -27,12 +28,12 @@ def test_publish_processing_job_uses_pubsub_backend():
 def test_publish_pubsub_job_serializes_expected_event():
     client = types.SimpleNamespace()
     future = types.SimpleNamespace()
-    future.result = lambda timeout=10: "ok"
+    future.result = lambda timeout=10: "msg-1"
     client.topic_path = lambda project, topic: f"projects/{project}/topics/{topic}"
     publish_calls = []
 
-    def _publish(topic_path, payload):
-        publish_calls.append((topic_path, payload))
+    def _publish(topic_path, data, **attrs):
+        publish_calls.append((topic_path, data, attrs))
         return future
 
     client.publish = _publish
@@ -48,11 +49,15 @@ def test_publish_pubsub_job_serializes_expected_event():
         publish_pubsub_job(101)
 
     assert len(publish_calls) == 1
-    topic_path, payload_bytes = publish_calls[0]
+    topic_path, payload_bytes, attrs = publish_calls[0]
     assert topic_path == "projects/proj/topics/topic"
+    assert attrs["job_id"] == "101"
+    assert attrs["event_type"] == "processing_job.created"
+    assert attrs["source"] == "cinetag-api"
+    assert attrs["schema_version"] == "1.0"
     payload = json.loads(payload_bytes.decode("utf-8"))
-    assert payload == {
-        "event_type": "processing_job.created",
-        "job_id": 101,
-        "source": "cinetag-api",
-    }
+    assert payload["job_id"] == 101
+    assert payload["schema_version"] == "1.0"
+    assert payload["event_type"] == "processing_job.created"
+    assert "event_id" in payload
+    assert "created_at" in payload

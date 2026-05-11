@@ -37,7 +37,9 @@ def _seed_tag(db, *, video_id: int, status: str, tag_value: str, tag_type: str =
 def test_review_endpoint_returns_empty_list_when_no_pending_tags(client):
     res = client.get("/api/review")
     assert res.status_code == 200
-    assert res.json() == []
+    body = res.json()
+    assert body["items"] == []
+    assert body["total"] == 0
 
 
 def test_review_endpoint_returns_only_pending_review_status(client, db_session):
@@ -49,8 +51,8 @@ def test_review_endpoint_returns_only_pending_review_status(client, db_session):
     res = client.get("/api/review")
     assert res.status_code == 200
     body = res.json()
-    assert len(body) == 1
-    item = body[0]
+    assert len(body["items"]) == 1
+    item = body["items"][0]
     assert item["id"] == pending.id
     assert item["status"] == "pending_review"
     assert item["tag_value"] == "suspenseful"
@@ -67,7 +69,7 @@ def test_review_endpoint_orders_newest_first(client, db_session):
 
     res = client.get("/api/review")
     assert res.status_code == 200
-    ids = [t["id"] for t in res.json()]
+    ids = [t["id"] for t in res.json()["items"]]
     # SQLAlchemy default created_at fills at insert time; the second insert
     # is newer (or equal), so we just assert both tags appear.
     assert older.id in ids
@@ -90,6 +92,6 @@ def test_review_endpoint_handles_missing_video_gracefully(client, db_session):
 
     res = client.get("/api/review")
     assert res.status_code == 200
-    items = [t for t in res.json() if t["tag_value"] == "orphan"]
+    items = [t for t in res.json()["items"] if t["tag_value"] == "orphan"]
     assert items, "orphan tag should still surface in the queue"
     assert items[0]["video_title"] is None

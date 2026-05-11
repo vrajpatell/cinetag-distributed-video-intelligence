@@ -35,6 +35,7 @@ from app.observability.metrics import (
     stage_duration,
     tags_generated,
     videos_processed,
+    worker_stage_failures_total,
 )
 from app.storage import get_object_store
 
@@ -197,6 +198,7 @@ def _run_stage(
         if video is not None:
             video.status = "failed"
         db.commit()
+        worker_stage_failures_total.labels(stage=stage_name).inc()
         logger.exception("worker_stage_failed job_id=%s stage=%s", job_id, stage_name)
         stage_duration.labels(stage_name).observe(time.perf_counter() - started)
         raise
@@ -610,6 +612,14 @@ def _embedding(db: Session, video: VideoAsset, ctx: PipelineContext) -> None:
             raise RuntimeError("embedding stage produced an empty vector")
         dimension = len(values)
         vector = values if dimension == settings.embedding_vector_dimension else None
+        if vector is None:
+            logger.info(
+                "embedding_json_only_dimension_mismatch video_id=%s dim=%s configured_vector_dim=%s provider=%s",
+                video.id,
+                dimension,
+                settings.embedding_vector_dimension,
+                settings.embedding_provider,
+            )
         return {
             "embedding": values,
             "embedding_vector": vector,

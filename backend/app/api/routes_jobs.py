@@ -3,10 +3,12 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.db.models import ProcessingJob, ProcessingStageRun, VideoAsset
+from app.api.pagination import paginate_sa_query
+from app.core.auth import RequireAdminOrService
+from app.db.models import AuditLog, ProcessingJob, ProcessingStageRun, VideoAsset
 from app.db.session import get_db
 from app.queue.publisher import publish_processing_job
 
@@ -56,8 +58,46 @@ def _serialize_job(job: ProcessingJob, db: Session) -> dict[str, Any]:
 
 
 @router.get('')
-def list_jobs(db: Session = Depends(get_db)):
-    return [_serialize_job(job, db) for job in db.query(ProcessingJob).all()]
+def list_jobs(
+    db: Session = Depends(get_db),
+    page: int | None = Query(default=None, ge=1),
+    page_size: int | None = Query(default=None, ge=1),
+    status: str | None = None,
+    current_stage: str | None = None,
+    video_id: int | None = None,
+    created_after: str | None = None,
+    created_before: str | None = None,
+):
+    from datetime import datetime
+
+    q = db.query(ProcessingJob)
+    if status:
+        q = q.filter(ProcessingJob.status == status)
+    if current_stage:
+        q = q.filter(ProcessingJob.current_stage == current_stage)
+    if video_id is not None:
+        q = q.filter(ProcessingJob.video_id == video_id)
+    if created_after:
+        try:
+            dt = datetime.fromisoformat(created_after.replace("Z", "+00:00"))
+            q = q.filter(ProcessingJob.created_at >= dt)
+        except ValueError:
+            raise HTTPException(400, detail="invalid created_after datetime") from None
+    if created_before:
+        try:
+            dt = datetime.fromisoformat(created_before.replace("Z", "+00:00"))
+            q = q.filter(ProcessingJob.created_at <= dt)
+        except ValueError:
+            raise HTTPException(400, detail="invalid created_before datetime") from None
+    q = q.order_by(ProcessingJob.id.desc())
+    raw = paginate_sa_query(q, page=page, page_size=page_size)
+    return {
+        "items": [_serialize_job(job, db) for job in raw["items"]],
+        "page": raw["page"],
+        "page_size": raw["page_size"],
+        "total": raw["total"],
+        "has_next": raw["has_next"],
+    }
 
 
 @router.get('/{job_id}')
@@ -83,7 +123,11 @@ def get_job_stages(job_id: int, db: Session = Depends(get_db)):
 
 
 @router.post('/{job_id}/retry')
-def retry_job(job_id: int, db: Session = Depends(get_db)):
+def retry_job(
+    job_id: int,
+    _auth: RequireAdminOrService,
+    db: Session = Depends(get_db),
+):
     """Retry a previously failed/partial job.
 
     Behavior:
@@ -101,13 +145,34 @@ def retry_job(job_id: int, db: Session = Depends(get_db)):
     if not job:
         raise HTTPException(status_code=404, detail='Job not found')
 
+    prev_err = job.error_message
+    prev_status = job.status
+    old_retry = job.retry_count or 0
     resume_stage = job.current_stage or 'metadata_extraction'
-    job.retry_count = (job.retry_count or 0) + 1
+    job.retry_count = old_retry + 1
     job.status = 'queued'
     job.current_stage = resume_stage
     job.error_message = None
     job.started_at = job.started_at
     job.completed_at = None
+    db.add(
+        AuditLog(
+            actor='api',
+            action='processing_job_retry',
+            entity_type='processing_job',
+            entity_id=job.id,
+            before_json={
+                'error_message': prev_err,
+                'retry_count': old_retry,
+                'status': prev_status,
+            },
+            after_json={
+                'retry_count': job.retry_count,
+                'status': job.status,
+                'retry_reason': 'api_retry',
+            },
+        )
+    )
     db.commit()
     db.refresh(job)
 

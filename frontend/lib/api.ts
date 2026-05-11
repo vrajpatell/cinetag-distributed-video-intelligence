@@ -1,5 +1,6 @@
 import type {
   JobSummary,
+  Paginated,
   ReviewItem,
   SearchResult,
   VideoPlaybackResponse,
@@ -56,6 +57,17 @@ function buildUrl(path: string): string {
   return `${API_BASE_URL}${p}`;
 }
 
+const RAW_API_KEY =
+  process.env.NEXT_PUBLIC_API_KEY?.trim() ||
+  process.env.NEXT_PUBLIC_REVIEWER_API_KEY?.trim() ||
+  process.env.NEXT_PUBLIC_ADMIN_API_KEY?.trim() ||
+  '';
+
+function authHeaders(): Record<string, string> {
+  if (!RAW_API_KEY) return {};
+  return { 'X-API-Key': RAW_API_KEY };
+}
+
 export async function apiFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   const url = buildUrl(path);
   let res: Response;
@@ -64,6 +76,7 @@ export async function apiFetch<T = unknown>(path: string, init?: RequestInit): P
       ...init,
       headers: {
         'Content-Type': 'application/json',
+        ...authHeaders(),
         ...(init?.headers || {}),
       },
       cache: init?.cache ?? 'no-store',
@@ -116,8 +129,45 @@ export async function safeFetch<T>(path: string, fallback: T, init?: RequestInit
   }
 }
 
-export async function getVideos(): Promise<VideoSummary[]> {
-  return apiFetch<VideoSummary[]>('/api/videos');
+export interface VideoListParams {
+  page?: number;
+  page_size?: number;
+  status?: string;
+  genre?: string;
+  mood?: string;
+  created_after?: string;
+  created_before?: string;
+  title_contains?: string;
+}
+
+export async function getVideos(params?: VideoListParams): Promise<Paginated<VideoSummary>> {
+  const q = new URLSearchParams();
+  if (params?.page != null) q.set('page', String(params.page));
+  if (params?.page_size != null) q.set('page_size', String(params.page_size));
+  if (params?.status) q.set('status', params.status);
+  if (params?.genre) q.set('genre', params.genre);
+  if (params?.mood) q.set('mood', params.mood);
+  if (params?.created_after) q.set('created_after', params.created_after);
+  if (params?.created_before) q.set('created_before', params.created_before);
+  if (params?.title_contains) q.set('title_contains', params.title_contains);
+  const qs = q.toString();
+  return apiFetch<Paginated<VideoSummary>>(qs ? `/api/videos?${qs}` : '/api/videos');
+}
+
+/** Fetch all pages up to a cap (for dashboards that expect a flat list). */
+export async function getVideosFlattened(
+  params?: Omit<VideoListParams, 'page' | 'page_size'>,
+  maxPages = 25,
+): Promise<VideoSummary[]> {
+  const out: VideoSummary[] = [];
+  let page = 1;
+  for (let i = 0; i < maxPages; i += 1) {
+    const res = await getVideos({ ...params, page, page_size: 100 });
+    out.push(...res.items);
+    if (!res.has_next) break;
+    page += 1;
+  }
+  return out;
 }
 
 export async function getVideo(id: string | number): Promise<VideoSummary> {
@@ -138,8 +188,42 @@ export async function getVideoPlayback(
   return apiFetch<VideoPlaybackResponse>(`/api/videos/${id}/playback`);
 }
 
-export async function getJobs(): Promise<JobSummary[]> {
-  return apiFetch<JobSummary[]>('/api/jobs');
+export interface JobListParams {
+  page?: number;
+  page_size?: number;
+  status?: string;
+  current_stage?: string;
+  video_id?: number;
+  created_after?: string;
+  created_before?: string;
+}
+
+export async function getJobs(params?: JobListParams): Promise<Paginated<JobSummary>> {
+  const q = new URLSearchParams();
+  if (params?.page != null) q.set('page', String(params.page));
+  if (params?.page_size != null) q.set('page_size', String(params.page_size));
+  if (params?.status) q.set('status', params.status);
+  if (params?.current_stage) q.set('current_stage', params.current_stage);
+  if (params?.video_id != null) q.set('video_id', String(params.video_id));
+  if (params?.created_after) q.set('created_after', params.created_after);
+  if (params?.created_before) q.set('created_before', params.created_before);
+  const qs = q.toString();
+  return apiFetch<Paginated<JobSummary>>(qs ? `/api/jobs?${qs}` : '/api/jobs');
+}
+
+export async function getJobsFlattened(
+  params?: Omit<JobListParams, 'page' | 'page_size'>,
+  maxPages = 25,
+): Promise<JobSummary[]> {
+  const out: JobSummary[] = [];
+  let page = 1;
+  for (let i = 0; i < maxPages; i += 1) {
+    const res = await getJobs({ ...params, page, page_size: 100 });
+    out.push(...res.items);
+    if (!res.has_next) break;
+    page += 1;
+  }
+  return out;
 }
 
 export async function getJob(id: string | number): Promise<JobSummary> {
@@ -202,11 +286,44 @@ export async function searchVideos(input: SearchInput): Promise<SearchResult[]> 
   });
 }
 
-export async function getReviewItems(): Promise<ReviewItem[]> {
-  // Lets callers distinguish between "API up, queue empty" (returns []) and
-  // "API unreachable" (throws ApiError). The review page surfaces the latter
-  // with a soft warning while still rendering demo data.
-  return apiFetch<ReviewItem[]>('/api/review');
+export interface ReviewListParams {
+  page?: number;
+  page_size?: number;
+  status?: string;
+  tag_type?: string;
+  source?: string;
+  video_id?: number;
+  created_after?: string;
+  created_before?: string;
+}
+
+export async function getReviewItems(params?: ReviewListParams): Promise<Paginated<ReviewItem>> {
+  const q = new URLSearchParams();
+  if (params?.page != null) q.set('page', String(params.page));
+  if (params?.page_size != null) q.set('page_size', String(params.page_size));
+  if (params?.status) q.set('status', params.status);
+  if (params?.tag_type) q.set('tag_type', params.tag_type);
+  if (params?.source) q.set('source', params.source);
+  if (params?.video_id != null) q.set('video_id', String(params.video_id));
+  if (params?.created_after) q.set('created_after', params.created_after);
+  if (params?.created_before) q.set('created_before', params.created_before);
+  const qs = q.toString();
+  return apiFetch<Paginated<ReviewItem>>(qs ? `/api/review?${qs}` : '/api/review');
+}
+
+export async function getReviewItemsFlattened(
+  params?: Omit<ReviewListParams, 'page' | 'page_size'>,
+  maxPages = 25,
+): Promise<ReviewItem[]> {
+  const out: ReviewItem[] = [];
+  let page = 1;
+  for (let i = 0; i < maxPages; i += 1) {
+    const res = await getReviewItems({ ...params, page, page_size: 100 });
+    out.push(...res.items);
+    if (!res.has_next) break;
+    page += 1;
+  }
+  return out;
 }
 
 export async function patchTag(tagId: number | string, body: { status?: string; tag_value?: string }) {

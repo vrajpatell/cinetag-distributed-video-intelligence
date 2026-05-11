@@ -30,10 +30,10 @@ export default function ReviewPage() {
     let cancelled = false;
     (async () => {
       try {
-        const real = await getReviewItems();
+        const real = await getReviewItems({ page_size: 100 });
         if (cancelled) return;
-        if (Array.isArray(real) && real.length > 0) {
-          setItems(real);
+        if (real.items.length > 0) {
+          setItems(real.items);
           setUsedDemo(false);
         } else {
           setItems(DEMO_REVIEW_ITEMS);

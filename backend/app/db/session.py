@@ -1,17 +1,30 @@
+from __future__ import annotations
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from app.core.config import settings
+from app.core.config import get_settings
 
-engine = create_engine(settings.effective_database_url, future=True)
-SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+_engine = None
+SessionLocal = sessionmaker(autoflush=False, autocommit=False, future=True)
 
 
 class Base(DeclarativeBase):
     pass
 
 
+def get_engine():
+    """Lazily create the SQLAlchemy engine after secrets/config bootstrap."""
+    global _engine
+    if _engine is None:
+        url = get_settings().effective_database_url
+        _engine = create_engine(url, future=True)
+        SessionLocal.configure(bind=_engine)
+    return _engine
+
+
 def get_db():
+    get_engine()
     db = SessionLocal()
     try:
         yield db

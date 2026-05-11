@@ -5,11 +5,9 @@ Revises:
 Create Date: 2026-05-09
 """
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
-
-# revision identifiers, used by Alembic.
 revision = "20260509_01_pgvector_embeddings"
 down_revision = None
 branch_labels = None
@@ -22,42 +20,70 @@ class Vector1536(sa.types.UserDefinedType):
 
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector;")
-    op.add_column(
-        "embedding_records",
-        sa.Column("embedding_vector", Vector1536(), nullable=True),
-    )
-    op.add_column(
-        "embedding_records",
-        sa.Column("embedding_model", sa.String(length=128), nullable=True),
-    )
-    op.add_column(
-        "embedding_records",
-        sa.Column("embedding_provider", sa.String(length=64), nullable=True),
-    )
-    op.add_column(
-        "embedding_records",
-        sa.Column("embedding_dimension", sa.Integer(), nullable=True),
+    bind = op.get_bind()
+    op.execute(sa.text("CREATE EXTENSION IF NOT EXISTS vector;"))
+    insp = sa.inspect(bind)
+    if "embedding_records" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("embedding_records")}
+    if "embedding_vector" not in cols:
+        op.add_column(
+            "embedding_records",
+            sa.Column("embedding_vector", Vector1536(), nullable=True),
+        )
+    if "embedding_model" not in cols:
+        op.add_column(
+            "embedding_records",
+            sa.Column("embedding_model", sa.String(length=128), nullable=True),
+        )
+    if "embedding_provider" not in cols:
+        op.add_column(
+            "embedding_records",
+            sa.Column("embedding_provider", sa.String(length=64), nullable=True),
+        )
+    if "embedding_dimension" not in cols:
+        op.add_column(
+            "embedding_records",
+            sa.Column("embedding_dimension", sa.Integer(), nullable=True),
+        )
+
+    op.execute(
+        sa.text(
+            """
+            DO $$
+            BEGIN
+              CREATE INDEX IF NOT EXISTS ix_embedding_records_vector_hnsw
+              ON embedding_records
+              USING hnsw (embedding_vector vector_cosine_ops);
+            EXCEPTION WHEN OTHERS THEN
+              RAISE NOTICE 'hnsw index skipped: %', SQLERRM;
+            END $$;
+            """
+        )
     )
     op.execute(
-        """
-        CREATE INDEX IF NOT EXISTS ix_embedding_records_vector_hnsw
-        ON embedding_records
-        USING hnsw (embedding_vector vector_cosine_ops);
-        """
-    )
-    op.execute(
-        """
-        UPDATE embedding_records
-        SET embedding_dimension = jsonb_array_length(embedding::jsonb)
-        WHERE embedding_dimension IS NULL;
-        """
+        sa.text(
+            """
+            UPDATE embedding_records
+            SET embedding_dimension = jsonb_array_length(embedding::jsonb)
+            WHERE embedding_dimension IS NULL AND embedding IS NOT NULL;
+            """
+        )
     )
 
 
 def downgrade() -> None:
-    op.execute("DROP INDEX IF EXISTS ix_embedding_records_vector_hnsw;")
-    op.drop_column("embedding_records", "embedding_dimension")
-    op.drop_column("embedding_records", "embedding_provider")
-    op.drop_column("embedding_records", "embedding_model")
-    op.drop_column("embedding_records", "embedding_vector")
+    op.execute(sa.text("DROP INDEX IF EXISTS ix_embedding_records_vector_hnsw;"))
+    bind = op.get_bind()
+    insp = sa.inspect(bind)
+    if "embedding_records" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("embedding_records")}
+    if "embedding_dimension" in cols:
+        op.drop_column("embedding_records", "embedding_dimension")
+    if "embedding_provider" in cols:
+        op.drop_column("embedding_records", "embedding_provider")
+    if "embedding_model" in cols:
+        op.drop_column("embedding_records", "embedding_model")
+    if "embedding_vector" in cols:
+        op.drop_column("embedding_records", "embedding_vector")

@@ -10,8 +10,9 @@ import logging
 from sqlalchemy import inspect, text
 from sqlalchemy.exc import ProgrammingError
 
+from app.bootstrap import ensure_preload
 from app.db.models import Base
-from app.db.session import engine
+from app.db.session import get_engine
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,8 @@ def _ensure_pgvector(conn) -> None:
 
 
 def main() -> int:
+    ensure_preload()
+    engine = get_engine()
     with engine.begin() as conn:
         _ensure_pgvector(conn)
 

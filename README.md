@@ -333,6 +333,13 @@ Database schema migrations use **Alembic**; see `backend/alembic/` and scripts r
 
 ## 16. GCP deployment
 
+### Production readiness (summary)
+
+- **Database:** Prefer `CLOUD_SQL_CONNECTION_NAME` + `DATABASE_PASSWORD` (Secret Manager) with `APP_ENV=gcp` instead of a Docker-style `DATABASE_URL`.
+- **Auth:** Set `AUTH_ENABLED=true` and configure `ADMIN_API_KEY` / `REVIEWER_API_KEY` / `SERVICE_API_KEY`; send `X-API-Key` on mutations. Local Docker defaults to `AUTH_ENABLED=false`.
+- **Search:** `SEMANTIC_SEARCH_BACKEND=auto` uses pgvector when dimensions match `embedding_vector_dimension`; otherwise Python JSON search. Use `python -m app.scripts.backfill_embedding_vectors` to populate `embedding_vector` from historical JSON.
+- **Docs:** See [`docs/latest-gap-fix-summary.md`](docs/latest-gap-fix-summary.md) and [`docs/streaming-roadmap.md`](docs/streaming-roadmap.md).
+
 ### Automated (GitHub Actions → GCP)
 
 Every push to `main` triggers the [`deploy-gcp`](.github/workflows/deploy-gcp.yml) workflow, which lints + tests, builds all three images via Cloud Build (tagging with both `:latest` and `:sha-<commit>`), runs the `cinetag-migrate` Cloud Run job, deploys the new image to `cinetag-api` / `cinetag-worker` / `cinetag-frontend` in parallel, and smoke-tests `/health`. Authentication uses **Workload Identity Federation** — no JSON keys are stored in GitHub.
@@ -368,6 +375,7 @@ curl $API_URL/ready
 curl $API_URL/api/videos
 curl -X POST $API_URL/api/uploads/init \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: $ADMIN_API_KEY" \
   -d '{"filename":"test.mp4","content_type":"video/mp4","size_bytes":12345,"title":"test"}'
 gcloud storage ls gs://<your-media-bucket>/originals/
 gcloud run services logs read cinetag-worker --region us-central1 --limit 100

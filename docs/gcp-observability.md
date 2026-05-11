@@ -58,6 +58,26 @@ Recommended initial alerts:
 - No completed jobs in expected active windows.
 - Cloud SQL CPU > 80% sustained 15m.
 - Redis memory > 80% sustained 15m.
+- Spike in `cinetag_semantic_search_fallback_total` (pgvector path falling back to Python more than baseline).
+- Elevated `cinetag_auth_failures_total` after auth rollouts.
+- Pub/Sub subscription `num_undelivered_messages` or elevated `dead_letter_message_count` on the processing subscription.
+
+### Prometheus metrics (API process)
+
+- `cinetag_api_request_total{route,status_code}`
+- `cinetag_api_request_duration_seconds_bucket{route}`
+- `cinetag_semantic_search_total{backend,status}`
+- `cinetag_semantic_search_fallback_total`
+- `cinetag_queue_publish_total{backend,status}`
+- `cinetag_pubsub_messages_total{status}`
+- `cinetag_worker_stage_failures_total{stage}`
+- `cinetag_auth_failures_total`
+- `cinetag_embedding_backfill_total{mode}`
+
+### Example log queries (Cloud Logging)
+
+- Filter by request: `jsonPayload.message=~".*" AND httpRequest.requestUrl=~"/api/videos.*"` (adjust for structured fields).
+- Correlate by header: search logs after a support ticket provides `X-Request-ID` (returned on every API response).
 
 ## 6) Log design recommendations
 

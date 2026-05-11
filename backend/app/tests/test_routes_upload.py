@@ -95,9 +95,10 @@ def test_init_upload_rejects_zero_or_negative_size(client):
 
 def test_init_upload_rejects_oversized_files(client, monkeypatch):
     # Default max is 1024 MB from conftest; force it tiny here.
-    monkeypatch.setattr(
-        routes_upload.settings, "max_upload_size_mb", 1, raising=False
-    )
+    monkeypatch.setenv("MAX_UPLOAD_SIZE_MB", "1")
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
     res = client.post(
         "/api/uploads/init",
         json=_payload(size_bytes=10 * 1024 * 1024),

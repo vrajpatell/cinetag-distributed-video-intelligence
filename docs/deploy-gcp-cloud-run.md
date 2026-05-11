@@ -87,18 +87,27 @@ Key outputs to capture:
 
 ## 5) Runtime configuration essentials
 
-At minimum, configure the following environment variables/secrets on API and worker services:
+Terraform wires most values on Cloud Run. Prefer **Cloud SQL Auth Proxy socket** style configuration (no `DATABASE_URL`):
 
-- `DATABASE_URL` (Cloud SQL Postgres DSN)
+- `APP_ENV=gcp`
+- `CLOUD_SQL_CONNECTION_NAME` (from Terraform output)
+- `DATABASE_PASSWORD` (Secret Manager secret `DATABASE_PASSWORD`, also injected as env from secret ref)
+- `SECRET_MANAGER_ENABLED=true` (API/worker/migrate job load additional secrets such as `OPENAI_API_KEY` when not set inline)
+- `AUTH_ENABLED=true` with `ADMIN_API_KEY`, `REVIEWER_API_KEY` (API) and `SERVICE_API_KEY` (worker automation / retry from trusted callers)
+- Clients send `X-API-Key`. For the Next.js app, set `NEXT_PUBLIC_API_KEY` (or role-specific vars) only in trusted demos — prefer server-side callers for production.
 - `QUEUE_BACKEND` (`celery` or `pubsub`)
-- `CELERY_BROKER_URL` and `CELERY_RESULT_BACKEND` (Redis when using celery)
-- `STORAGE_BACKEND=gcs`
-- `GCS_BUCKET=<media-bucket>`
-- `GCP_PROJECT_ID=<project-id>`
-- `GCP_REGION=<region>`
+- Redis URL for Celery (`REDIS_URL` from Memorystore)
+- `STORAGE_BACKEND=gcs`, `GCS_BUCKET_NAME`
+- `GCP_PROJECT_ID`, `GCP_REGION`
 - `PUBSUB_TOPIC_NAME`, `PUBSUB_SUBSCRIPTION_NAME` (when using pubsub)
-- Provider controls (`LLM_PROVIDER`, `EMBEDDING_PROVIDER`, `TRANSCRIPTION_PROVIDER`)
-- `PGVECTOR_ENABLED=true` and `SEMANTIC_SEARCH_BACKEND=auto` with pgvector enabled on Cloud SQL
+- `SEMANTIC_SEARCH_BACKEND` (`auto` recommended)
+- Optional: `OTEL_ENABLED`, `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_SERVICE_NAME`
+
+**Import note:** If `DATABASE_PASSWORD` (or other secrets) already exist in the project, use `terraform import` on the `google_secret_manager_secret` resources before apply, or adopt the generated versions and rotate the Cloud SQL user password to match.
+
+Optional: set Terraform `api_ingress` to `INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER` for private API behind a load balancer; default remains public for demos.
+
+Ensure **pgvector** is enabled on the Cloud SQL database (extension installed once as an admin); use `PGVECTOR_ENABLED=true` (default) and `SEMANTIC_SEARCH_BACKEND=auto` unless operating in pure-Python search mode.
 
 Frontend requires:
 

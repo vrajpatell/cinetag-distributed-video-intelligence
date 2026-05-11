@@ -131,6 +131,14 @@ export interface VideoPlaybackResponse {
   file_size_bytes?: number | null;
 }
 
+export interface Paginated<T> {
+  items: T[];
+  page: number;
+  page_size: number;
+  total: number;
+  has_next: boolean;
+}
+
 export interface PlatformMetric {
   label: string;
   value: string;

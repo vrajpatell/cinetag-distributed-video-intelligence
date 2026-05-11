@@ -97,3 +97,29 @@ variable "frontend_image" {
   type    = string
   default = "us-central1-docker.pkg.dev/cinetag-distributed-video/cinetag-containers/cinetag-frontend:latest"
 }
+
+variable "api_ingress" {
+  type        = string
+  description = "Cloud Run API ingress (e.g. INGRESS_TRAFFIC_ALL or INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER)"
+  default     = "INGRESS_TRAFFIC_ALL"
+}
+
+variable "auth_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "secret_manager_enabled" {
+  type    = bool
+  default = true
+}
+
+variable "semantic_search_backend" {
+  type    = string
+  default = "auto"
+}
+
+variable "enable_cloud_cdn" {
+  type    = bool
+  default = false
+}
