@@ -1,6 +1,30 @@
 {
   "version": 4,
   "routes": {
+    "/review": {
+      "experimentalBypassFor": [
+        {
+          "type": "header",
+          "key": "Next-Action"
+        },
+        {
+          "type": "header",
+          "key": "content-type",
+          "value": "multipart/form-data;.*"
+        }
+      ],
+      "initialRevalidateSeconds": false,
+      "srcRoute": "/review",
+      "dataRoute": "/review.rsc",
+      "allowHeader": [
+        "host",
+        "x-matched-path",
+        "x-prerender-revalidate",
+        "x-prerender-revalidate-if-generated",
+        "x-next-revalidated-tags",
+        "x-next-revalidate-tag-token"
+      ]
+    },
     "/upload": {
       "experimentalBypassFor": [
         {
@@ -48,37 +72,13 @@
         "x-next-revalidated-tags",
         "x-next-revalidate-tag-token"
       ]
-    },
-    "/review": {
-      "experimentalBypassFor": [
-        {
-          "type": "header",
-          "key": "Next-Action"
-        },
-        {
-          "type": "header",
-          "key": "content-type",
-          "value": "multipart/form-data;.*"
-        }
-      ],
-      "initialRevalidateSeconds": false,
-      "srcRoute": "/review",
-      "dataRoute": "/review.rsc",
-      "allowHeader": [
-        "host",
-        "x-matched-path",
-        "x-prerender-revalidate",
-        "x-prerender-revalidate-if-generated",
-        "x-next-revalidated-tags",
-        "x-next-revalidate-tag-token"
-      ]
     }
   },
   "dynamicRoutes": {},
   "notFoundRoutes": [],
   "preview": {
-    "previewModeId": "f222a2d1c2f74b4cee637a113cd11d1c",
-    "previewModeSigningKey": "2552b43d50f3efe0daca543b791a32231fcf2d3566664f66d117d5a4a60e7a1f",
-    "previewModeEncryptionKey": "09caa1eaa266a0ae297fa7db6457a26a187ba92098018309a315954907c6417f"
+    "previewModeId": "cbf4be62c8bb3af32adeeead2ef6e469",
+    "previewModeSigningKey": "18091b386e68080e6c2e53e4d23325ab9b7d83a8ace4b8707fcdbcb773221b97",
+    "previewModeEncryptionKey": "758adcab4015d2a6ad5beebe8acff200fedbfc35b12a3a120238def1adfd5607"
   }
 }

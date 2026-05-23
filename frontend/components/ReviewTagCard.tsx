@@ -1,11 +1,25 @@
 'use client';
 
 import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Check, Pencil, X } from 'lucide-react';
 import type { ReviewItem } from '@/lib/types';
 import { formatRelativeTime } from '@/lib/format';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export type ReviewDecision = 'approved' | 'rejected' | 'edited';
 type LocalDecisionState = ReviewDecision | 'pending';
+
+const editSchema = z.object({
+  tag_value: z.string().min(1, 'Tag value is required').max(120, 'Tag value is too long'),
+});
+
+type EditFormValues = z.infer<typeof editSchema>;
 
 export default function ReviewTagCard({
   item,
@@ -15,22 +29,30 @@ export default function ReviewTagCard({
   onDecision?: (id: ReviewItem['id'], decision: ReviewDecision, value?: string) => void;
 }) {
   const [decision, setDecision] = useState<LocalDecisionState>(
-    item.status === 'approved' ? 'approved' : item.status === 'rejected' ? 'rejected' : 'pending'
+    item.status === 'approved' ? 'approved' : item.status === 'rejected' ? 'rejected' : 'pending',
   );
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(item.tag_value);
+
+  const form = useForm<EditFormValues>({
+    resolver: zodResolver(editSchema),
+    defaultValues: { tag_value: item.tag_value },
+  });
 
   const apply = (d: ReviewDecision, v?: string) => {
     setDecision(d);
     onDecision?.(item.id, d, v);
   };
 
+  const onSaveEdit = form.handleSubmit((values) => {
+    apply('edited', values.tag_value);
+    setEditing(false);
+  });
+
   const conf = Math.round(item.confidence * 100);
-  const confColor =
-    conf >= 85 ? 'text-emerald-300' : conf >= 65 ? 'text-amber-300' : 'text-rose-300';
+  const confVariant = conf >= 85 ? 'emerald' : conf >= 65 ? 'amber' : 'rose';
 
   return (
-    <div className="panel-strong relative overflow-hidden p-5">
+    <div className="panel-strong relative overflow-hidden p-5 transition-colors hover:border-white/15">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/10 to-transparent" />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -40,18 +62,25 @@ export default function ReviewTagCard({
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <span className="text-[11px] uppercase tracking-wider text-white/55">{item.tag_type}</span>
             {!editing ? (
-              <span className="text-lg font-semibold text-white">{value}</span>
+              <span className="text-lg font-semibold text-white">{form.watch('tag_value')}</span>
             ) : (
-              <input
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                className="rounded-md border border-cinetag-border bg-cinetag-panelMuted px-2 py-1 text-sm text-white outline-none focus:border-cinetag-red/60"
-              />
+              <form onSubmit={onSaveEdit} className="flex items-center gap-2">
+                <Input
+                  {...form.register('tag_value')}
+                  className="!h-8 !text-sm max-w-[220px]"
+                  autoFocus
+                />
+                {form.formState.errors.tag_value ? (
+                  <span className="text-[10px] text-rose-300">
+                    {form.formState.errors.tag_value.message}
+                  </span>
+                ) : null}
+              </form>
             )}
-            <span className={`chip-neutral !text-[10px] font-mono ${confColor}`}>
+            <Badge variant={confVariant as 'emerald' | 'amber' | 'rose'} className="!text-[10px] font-mono">
               conf {conf}%
-            </span>
-            <span className="chip-neutral !text-[10px]">src: {item.source}</span>
+            </Badge>
+            <Badge className="!text-[10px]">src: {item.source}</Badge>
           </div>
         </div>
         <div className="text-[11px] text-white/45">{formatRelativeTime(item.created_at)}</div>
@@ -73,42 +102,50 @@ export default function ReviewTagCard({
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <button
+        <Button
           type="button"
-          onClick={() => apply('approved', value)}
-          className={[
-            'btn !px-3 !py-1.5 !text-xs',
-            decision === 'approved'
-              ? 'bg-emerald-500/90 text-black hover:bg-emerald-400'
-              : 'bg-emerald-500/15 text-emerald-200 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25',
-          ].join(' ')}
+          size="sm"
+          variant={decision === 'approved' ? 'success' : 'secondary'}
+          onClick={() => apply('approved', form.getValues('tag_value'))}
+          className={cn(
+            '!text-xs',
+            decision !== 'approved' &&
+              '!bg-emerald-500/15 !text-emerald-200 !border-emerald-500/30 hover:!bg-emerald-500/25',
+          )}
         >
+          <Check className="h-3.5 w-3.5" />
           Approve
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          onClick={() => apply('rejected', value)}
-          className={[
-            'btn !px-3 !py-1.5 !text-xs',
-            decision === 'rejected'
-              ? 'bg-rose-500/90 text-white hover:bg-rose-400'
-              : 'bg-rose-500/15 text-rose-200 ring-1 ring-rose-500/30 hover:bg-rose-500/25',
-          ].join(' ')}
+          size="sm"
+          variant={decision === 'rejected' ? 'destructive' : 'secondary'}
+          onClick={() => apply('rejected', form.getValues('tag_value'))}
+          className={cn(
+            '!text-xs',
+            decision !== 'rejected' &&
+              '!bg-rose-500/15 !text-rose-200 !border-rose-500/30 hover:!bg-rose-500/25',
+          )}
         >
+          <X className="h-3.5 w-3.5" />
           Reject
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          size="sm"
+          variant="secondary"
           onClick={() => {
             if (editing) {
-              apply('edited', value);
+              void onSaveEdit();
+            } else {
+              setEditing(true);
             }
-            setEditing((v) => !v);
           }}
-          className="btn !px-3 !py-1.5 !text-xs bg-white/5 text-white/85 ring-1 ring-white/10 hover:bg-white/10"
+          className="!text-xs"
         >
+          <Pencil className="h-3.5 w-3.5" />
           {editing ? 'Save edit' : 'Edit value'}
-        </button>
+        </Button>
         {decision !== 'pending' ? (
           <span className="ml-auto text-[11px] text-white/55">decision: {decision}</span>
         ) : null}

@@ -1,52 +1,30 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import JobStatusBadge from '@/components/JobStatusBadge';
 import EmptyState from '@/components/EmptyState';
 import PipelineFlow from '@/components/PipelineFlow';
-import { ApiError, getJobs, retryJob } from '@/lib/api';
-import { DEMO_JOBS } from '@/lib/demo-data';
+import { FadeIn } from '@/components/motion/Motion';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useJobs, useRetryJob } from '@/lib/hooks/use-jobs';
 import { formatRelativeTime } from '@/lib/format';
 import type { JobSummary } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
 const STATUS_FILTERS = ['all', 'queued', 'running', 'completed', 'failed', 'partially_completed'] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
 
 export default function JobsPage() {
-  const [jobs, setJobs] = useState<JobSummary[] | null>(null);
-  const [usedDemo, setUsedDemo] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading, isFetching, refetch } = useJobs(100);
+  const retryMutation = useRetryJob();
   const [filter, setFilter] = useState<StatusFilter>('all');
-  const [retrying, setRetrying] = useState<string | number | null>(null);
 
-  const load = useCallback(async () => {
-    try {
-      const real = await getJobs({ page_size: 100 });
-      if (real.items.length > 0) {
-        setJobs(real.items);
-        setUsedDemo(false);
-      } else {
-        setJobs(DEMO_JOBS);
-        setUsedDemo(true);
-      }
-      setError(null);
-    } catch (err) {
-      setJobs(DEMO_JOBS);
-      setUsedDemo(true);
-      setError(
-        err instanceof ApiError
-          ? `Could not reach jobs API (${err.status ?? 'network error'}). Showing demo data.`
-          : 'Could not reach jobs API. Showing demo data.'
-      );
-    }
-  }, []);
-
-  useEffect(() => {
-    load();
-    const id = setInterval(load, 15_000);
-    return () => clearInterval(id);
-  }, [load]);
+  const jobs = data?.jobs ?? null;
+  const usedDemo = data?.usedDemo ?? false;
+  const error = data?.loadError ?? null;
 
   const summary = useMemo(() => {
     const list = jobs || [];
@@ -66,43 +44,40 @@ export default function JobsPage() {
     return list.filter((j) => j.status === filter);
   }, [jobs, filter]);
 
-  const onRetry = async (id: string | number) => {
-    if (typeof id === 'string' && id.startsWith('job-')) {
-      setError('Retry is disabled for demo jobs.');
-      return;
-    }
-    setRetrying(id);
-    try {
-      await retryJob(id);
-      await load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Retry failed');
-    } finally {
-      setRetrying(null);
-    }
+  const onRetry = (id: string | number) => {
+    retryMutation.mutate(id);
   };
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-6 px-5 py-8">
-      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <span className="chip-sky !text-[11px]">
-            <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulseSoft" />
-            Distributed pipeline observability
-          </span>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl">Processing jobs</h1>
-          <p className="mt-1 max-w-2xl text-sm text-white/60">
-            Live operational view across the CineTag worker pipeline. Each job is an autoscaled,
-            retryable task with stage-level instrumentation.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 text-[11px] text-white/55">
-          <span className="chip-neutral">auto-refresh 15s</span>
-          <button onClick={load} className="btn-ghost !px-2.5 !py-1 !text-xs">
-            Refresh
-          </button>
-        </div>
-      </header>
+      <FadeIn>
+        <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <Badge variant="sky" className="!text-[11px]">
+              <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulseSoft" />
+              Distributed pipeline observability
+            </Badge>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl">Processing jobs</h1>
+            <p className="mt-1 max-w-2xl text-sm text-white/60">
+              Live operational view across the CineTag worker pipeline. Each job is an autoscaled,
+              retryable task with stage-level instrumentation.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-white/55">
+            <Badge>auto-refresh 15s</Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void refetch()}
+              disabled={isFetching}
+              className="!text-xs"
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} />
+              Refresh
+            </Button>
+          </div>
+        </header>
+      </FadeIn>
 
       {error ? (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-200">
@@ -121,22 +96,22 @@ export default function JobsPage() {
 
       <div className="flex flex-wrap items-center gap-2">
         {STATUS_FILTERS.map((f) => (
-          <button
+          <Button
             key={f}
+            variant={filter === f ? 'default' : 'secondary'}
+            size="sm"
             onClick={() => setFilter(f)}
-            className={[
-              'rounded-full border px-3 py-1 text-[11.5px] capitalize transition',
-              filter === f
-                ? 'border-cinetag-red/50 bg-cinetag-red/15 text-cinetag-redGlow'
-                : 'border-white/10 bg-white/5 text-white/65 hover:bg-white/10',
-            ].join(' ')}
+            className={cn(
+              '!rounded-full !text-[11.5px] capitalize',
+              filter !== f && '!bg-white/5 !border-white/10',
+            )}
           >
             {f.replace('_', ' ')}
-          </button>
+          </Button>
         ))}
       </div>
 
-      {!jobs ? (
+      {isLoading ? (
         <div className="panel p-6 text-sm text-white/55">Loading jobs…</div>
       ) : filtered.length === 0 ? (
         <EmptyState
@@ -162,39 +137,12 @@ export default function JobsPage() {
             </thead>
             <tbody className="divide-y divide-cinetag-border/60 bg-cinetag-panel/60">
               {filtered.map((j) => (
-                <tr key={String(j.id)} className="hover:bg-white/[0.03]">
-                  <td className="px-4 py-3 font-mono text-white/90">#{j.id}</td>
-                  <td className="px-4 py-3">
-                    {j.video_id != null ? (
-                      <Link href={`/videos/${j.video_id}`} className="text-white hover:text-cinetag-redGlow">
-                        {j.video_title || `Video #${j.video_id}`}
-                      </Link>
-                    ) : (
-                      <span className="text-white/55">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <JobStatusBadge status={j.status} compact />
-                  </td>
-                  <td className="px-4 py-3">
-                    <JobStatusBadge stage={j.current_stage} compact />
-                  </td>
-                  <td className="px-4 py-3 font-mono">{j.retry_count ?? 0}</td>
-                  <td className="px-4 py-3 text-white/65">{formatRelativeTime(j.created_at)}</td>
-                  <td className="px-4 py-3 text-white/65">{formatRelativeTime(j.started_at)}</td>
-                  <td className="px-4 py-3 text-white/65">{formatRelativeTime(j.completed_at)}</td>
-                  <td className="px-4 py-3 text-right">
-                    {j.status === 'failed' || j.status === 'partially_completed' ? (
-                      <button
-                        onClick={() => onRetry(j.id)}
-                        disabled={retrying === j.id}
-                        className="btn !px-2.5 !py-1 !text-[11px] bg-white/5 ring-1 ring-white/10 hover:bg-white/10"
-                      >
-                        {retrying === j.id ? 'Retrying…' : 'Retry'}
-                      </button>
-                    ) : null}
-                  </td>
-                </tr>
+                <JobRow
+                  key={String(j.id)}
+                  job={j}
+                  onRetry={onRetry}
+                  retrying={retryMutation.isPending && retryMutation.variables === j.id}
+                />
               ))}
             </tbody>
           </table>
@@ -254,6 +202,54 @@ export default function JobsPage() {
   );
 }
 
+function JobRow({
+  job: j,
+  onRetry,
+  retrying,
+}: {
+  job: JobSummary;
+  onRetry: (id: string | number) => void;
+  retrying: boolean;
+}) {
+  return (
+    <tr className="transition-colors hover:bg-white/[0.03]">
+      <td className="px-4 py-3 font-mono text-white/90">#{j.id}</td>
+      <td className="px-4 py-3">
+        {j.video_id != null ? (
+          <Link href={`/videos/${j.video_id}`} className="text-white hover:text-cinetag-redGlow">
+            {j.video_title || `Video #${j.video_id}`}
+          </Link>
+        ) : (
+          <span className="text-white/55">—</span>
+        )}
+      </td>
+      <td className="px-4 py-3">
+        <JobStatusBadge status={j.status} compact />
+      </td>
+      <td className="px-4 py-3">
+        <JobStatusBadge stage={j.current_stage} compact />
+      </td>
+      <td className="px-4 py-3 font-mono">{j.retry_count ?? 0}</td>
+      <td className="px-4 py-3 text-white/65">{formatRelativeTime(j.created_at)}</td>
+      <td className="px-4 py-3 text-white/65">{formatRelativeTime(j.started_at)}</td>
+      <td className="px-4 py-3 text-white/65">{formatRelativeTime(j.completed_at)}</td>
+      <td className="px-4 py-3 text-right">
+        {j.status === 'failed' || j.status === 'partially_completed' ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => onRetry(j.id)}
+            disabled={retrying}
+            className="!text-[11px]"
+          >
+            {retrying ? 'Retrying…' : 'Retry'}
+          </Button>
+        ) : null}
+      </td>
+    </tr>
+  );
+}
+
 function SummaryCard({
   label,
   value,
@@ -278,10 +274,10 @@ function SummaryCard({
     rose: 'text-rose-300',
   };
   return (
-    <div className={`panel p-4 ring-1 ${ring[accent]}`}>
+    <FadeIn className={`panel p-4 ring-1 ${ring[accent]}`}>
       <div className="text-[11px] uppercase tracking-wider text-white/50">{label}</div>
       <div className={`mt-1 text-2xl font-extrabold ${text[accent]}`}>{value}</div>
-    </div>
+    </FadeIn>
   );
 }
 

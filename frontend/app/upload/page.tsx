@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import UploadDropzone from '@/components/UploadDropzone';
 import UploadProgress from '@/components/UploadProgress';
 import ErrorToast, { type ErrorDetail } from '@/components/ErrorToast';
@@ -42,8 +43,12 @@ export default function UploadPage() {
       });
       setResult(res);
       setStage('queued_for_analysis');
+      toast.success('Upload complete', {
+        description: `Video queued for analysis (job #${res.job_id}).`,
+      });
     } catch (err) {
       if (err instanceof UploadError) {
+        toast.error(err.message, { description: stageMessage(err.stage) });
         setError({
           title: err.message,
           message: stageMessage(err.stage),
@@ -52,6 +57,9 @@ export default function UploadPage() {
           hint: err.hint || stageHint(err.stage),
         });
       } else {
+        toast.error('Upload failed', {
+          description: err instanceof Error ? err.message : 'Unknown error',
+        });
         setError({
           title: 'Upload failed',
           message: err instanceof Error ? err.message : 'Unknown error',

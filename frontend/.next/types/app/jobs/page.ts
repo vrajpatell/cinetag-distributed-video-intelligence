@@ -1,4 +1,4 @@
-// File: /home/iamvrajpatell/cinetag-distributed-video-intelligence/frontend/app/jobs/page.tsx
+// File: C:\Users\Vraj Patel\OneDrive\work_project_files\cinetag-distributed-video-intelligence\frontend\app\jobs\page.tsx
 import * as entry from '../../../../app/jobs/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

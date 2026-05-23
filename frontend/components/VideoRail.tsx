@@ -1,5 +1,8 @@
+'use client';
+
 import type { VideoSummary } from '@/lib/types';
 import VideoCard from './VideoCard';
+import { FadeIn, StaggerChildren, StaggerItem } from '@/components/motion/Motion';
 
 export default function VideoRail({
   title,
@@ -22,24 +25,28 @@ export default function VideoRail({
   };
   return (
     <section className="mx-auto w-full max-w-[1400px] px-5">
-      <div className="mb-3 flex items-end justify-between gap-3">
-        <div>
-          <h2
-            className={`relative pl-3 text-lg font-bold tracking-tight text-white before:absolute before:left-0 before:top-1/2 before:h-4 before:w-1 before:-translate-y-1/2 before:rounded ${accentClass[accent] || accentClass.red}`}
-          >
-            {title}
-          </h2>
-          {subtitle ? <p className="mt-1 text-[12px] text-white/50">{subtitle}</p> : null}
+      <FadeIn>
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <h2
+              className={`relative pl-3 text-lg font-bold tracking-tight text-white before:absolute before:left-0 before:top-1/2 before:h-4 before:w-1 before:-translate-y-1/2 before:rounded ${accentClass[accent] || accentClass.red}`}
+            >
+              {title}
+            </h2>
+            {subtitle ? <p className="mt-1 text-[12px] text-white/50">{subtitle}</p> : null}
+          </div>
+          <div className="hidden text-[11px] text-white/40 md:block">
+            {videos.length} {videos.length === 1 ? 'asset' : 'assets'}
+          </div>
         </div>
-        <div className="hidden text-[11px] text-white/40 md:block">
-          {videos.length} {videos.length === 1 ? 'asset' : 'assets'}
-        </div>
-      </div>
-      <div className="rail-scroll">
+      </FadeIn>
+      <StaggerChildren className="rail-scroll">
         {videos.map((v) => (
-          <VideoCard key={String(v.id)} video={v} />
+          <StaggerItem key={String(v.id)}>
+            <VideoCard video={v} />
+          </StaggerItem>
         ))}
-      </div>
+      </StaggerChildren>
     </section>
   );
 }

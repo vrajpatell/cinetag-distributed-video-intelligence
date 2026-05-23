@@ -1,55 +1,34 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import ReviewTagCard from '@/components/ReviewTagCard';
 import EmptyState from '@/components/EmptyState';
-import ErrorToast, { type ErrorDetail } from '@/components/ErrorToast';
-import { ApiError, getReviewItems, patchTag } from '@/lib/api';
-import { DEMO_REVIEW_ITEMS } from '@/lib/demo-data';
+import { FadeIn, StaggerChildren, StaggerItem } from '@/components/motion/Motion';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { usePatchTag, useReviewItems, type TagDecision } from '@/lib/hooks/use-review';
 import type { ReviewItem } from '@/lib/types';
 
-type Decision = 'approved' | 'rejected' | 'edited';
-type DecisionState = Decision | 'pending';
-
-const DECISION_TO_TAG_STATUS: Record<Decision, 'approved' | 'rejected'> = {
-  approved: 'approved',
-  rejected: 'rejected',
-  edited: 'approved',
-};
+type DecisionState = TagDecision | 'pending';
 
 export default function ReviewPage() {
-  const [items, setItems] = useState<ReviewItem[] | null>(null);
-  const [usedDemo, setUsedDemo] = useState(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<ErrorDetail | null>(null);
+  const { data, isLoading } = useReviewItems(100);
+  const patchTag = usePatchTag();
   const [filterType, setFilterType] = useState<string>('all');
   const [filterSource, setFilterSource] = useState<string>('all');
   const [decisions, setDecisions] = useState<Record<string, DecisionState>>({});
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const real = await getReviewItems({ page_size: 100 });
-        if (cancelled) return;
-        if (real.items.length > 0) {
-          setItems(real.items);
-          setUsedDemo(false);
-        } else {
-          setItems(DEMO_REVIEW_ITEMS);
-          setUsedDemo(true);
-        }
-      } catch (err) {
-        if (cancelled) return;
-        setItems(DEMO_REVIEW_ITEMS);
-        setUsedDemo(true);
-        setLoadError(err instanceof ApiError ? err.message : 'Could not reach review API.');
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const items = data?.items ?? null;
+  const usedDemo = data?.usedDemo ?? false;
+  const loadError = data?.loadError ?? null;
 
   const filtered = useMemo(() => {
     const list = items || [];
@@ -60,42 +39,9 @@ export default function ReviewPage() {
     });
   }, [items, filterType, filterSource]);
 
-  const onDecision = async (
-    id: ReviewItem['id'],
-    decision: Decision,
-    value?: string,
-  ) => {
+  const onDecision = (id: ReviewItem['id'], decision: TagDecision, value?: string) => {
     setDecisions((p) => ({ ...p, [String(id)]: decision }));
-    // Demo IDs (strings, prefixed `rv-`) live only in the UI and never hit the API.
-    if (typeof id !== 'number') return;
-    try {
-      await patchTag(id, {
-        status: DECISION_TO_TAG_STATUS[decision],
-        tag_value: decision === 'edited' ? value : undefined,
-      });
-      setActionError(null);
-    } catch (err) {
-      // Roll the optimistic decision back so the UI stays honest.
-      setDecisions((p) => {
-        const next = { ...p };
-        delete next[String(id)];
-        return next;
-      });
-      if (err instanceof ApiError) {
-        setActionError({
-          title: 'Could not record review decision',
-          message: `Tag #${id}: ${err.message}`,
-          endpoint: err.endpoint,
-          status: err.status,
-          hint: 'Try again, or check that PATCH /api/tags/:id is reachable.',
-        });
-      } else {
-        setActionError({
-          title: 'Could not record review decision',
-          message: err instanceof Error ? err.message : 'Unknown error',
-        });
-      }
-    }
+    patchTag.mutate({ id, decision, value });
   };
 
   const batchApproveAll = () => {
@@ -114,28 +60,30 @@ export default function ReviewPage() {
 
   return (
     <div className="mx-auto max-w-[1400px] space-y-6 px-5 py-8">
-      <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <span className="chip-violet !text-[11px]">
-            <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulseSoft" />
-            Human-in-the-loop review
-          </span>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl">AI tag review</h1>
-          <p className="mt-1 max-w-2xl text-sm text-white/60">
-            Approve, reject, or edit AI-generated metadata before it goes live in search and
-            recommendations. Each decision writes to the audit log.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="chip-neutral">total {counts.total}</span>
-          <span className="chip-emerald">approved {counts.approved}</span>
-          <span className="chip-rose">rejected {counts.rejected}</span>
-          <span className="chip-amber">pending {counts.pending}</span>
-          <button onClick={batchApproveAll} className="btn-primary !px-3 !py-1.5 !text-xs">
-            Batch approve filtered
-          </button>
-        </div>
-      </header>
+      <FadeIn>
+        <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <Badge variant="violet" className="!text-[11px]">
+              <span className="h-1.5 w-1.5 rounded-full bg-violet-400 animate-pulseSoft" />
+              Human-in-the-loop review
+            </Badge>
+            <h1 className="mt-2 text-3xl font-extrabold tracking-tight md:text-4xl">AI tag review</h1>
+            <p className="mt-1 max-w-2xl text-sm text-white/60">
+              Approve, reject, or edit AI-generated metadata before it goes live in search and
+              recommendations. Each decision writes to the audit log.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge>total {counts.total}</Badge>
+            <Badge variant="emerald">approved {counts.approved}</Badge>
+            <Badge variant="rose">rejected {counts.rejected}</Badge>
+            <Badge variant="amber">pending {counts.pending}</Badge>
+            <Button size="sm" onClick={batchApproveAll} className="!text-xs">
+              Batch approve filtered
+            </Button>
+          </div>
+        </header>
+      </FadeIn>
 
       {loadError ? (
         <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[12.5px] text-amber-200">
@@ -143,20 +91,23 @@ export default function ReviewPage() {
         </div>
       ) : null}
 
-      <ErrorToast error={actionError} onDismiss={() => setActionError(null)} />
-
-
-      <div className="panel flex flex-wrap items-center gap-3 p-3">
-        <FilterSelect label="Tag type" value={filterType} onChange={setFilterType} options={[
-          'all', 'genre', 'mood', 'object', 'scene', 'theme', 'moderation', 'entity',
-        ]} />
-        <FilterSelect label="Source" value={filterSource} onChange={setFilterSource} options={[
-          'all', 'llm', 'transcript', 'visual_frame', 'metadata', 'manual',
-        ]} />
+      <div className="panel flex flex-wrap items-center gap-4 p-3">
+        <FilterSelect
+          label="Tag type"
+          value={filterType}
+          onChange={setFilterType}
+          options={['all', 'genre', 'mood', 'object', 'scene', 'theme', 'moderation', 'entity']}
+        />
+        <FilterSelect
+          label="Source"
+          value={filterSource}
+          onChange={setFilterSource}
+          options={['all', 'llm', 'transcript', 'visual_frame', 'metadata', 'manual']}
+        />
         <span className="ml-auto text-[11px] text-white/50">{filtered.length} items</span>
       </div>
 
-      {!items ? (
+      {isLoading ? (
         <div className="panel p-6 text-sm text-white/55">Loading review queue…</div>
       ) : filtered.length === 0 ? (
         <EmptyState
@@ -165,11 +116,13 @@ export default function ReviewPage() {
           action={{ label: 'Upload video', href: '/upload' }}
         />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <StaggerChildren className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {filtered.map((i) => (
-            <ReviewTagCard key={String(i.id)} item={i} onDecision={onDecision} />
+            <StaggerItem key={String(i.id)}>
+              <ReviewTagCard item={i} onDecision={onDecision} />
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerChildren>
       )}
 
       {usedDemo ? (
@@ -193,19 +146,20 @@ function FilterSelect({
   options: string[];
 }) {
   return (
-    <label className="flex items-center gap-2 text-[12px] text-white/65">
-      <span className="text-white/45">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="rounded-md border border-white/10 bg-cinetag-panelMuted/80 px-2 py-1 text-white outline-none focus:border-cinetag-red/60"
-      >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="flex items-center gap-2">
+      <Label className="text-white/45">{label}</Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger className="w-[160px] !h-8 !text-[12px]">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o} value={o}>
+              {o}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }

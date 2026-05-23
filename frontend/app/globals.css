@@ -5,6 +5,11 @@
 @layer base {
   :root {
     color-scheme: dark;
+    --background: 228 20% 3%;
+    --foreground: 210 20% 97%;
+    --border: 225 14% 16%;
+    --input: 225 14% 16%;
+    --ring: 357 92% 47%;
   }
   html, body {
     @apply bg-cinetag-ink text-cinetag-text;

@@ -3,7 +3,7 @@
   "/jobs/page": "/jobs",
   "/review/page": "/review",
   "/upload/page": "/upload",
+  "/search/page": "/search",
   "/page": "/",
-  "/videos/[id]/page": "/videos/[id]",
-  "/search/page": "/search"
+  "/videos/[id]/page": "/videos/[id]"
 }

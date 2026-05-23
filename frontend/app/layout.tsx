@@ -1,7 +1,15 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { DM_Sans } from 'next/font/google';
 import TopNav from '@/components/TopNav';
 import FooterDebug from '@/components/FooterDebug';
+import AppProviders from '@/components/providers/AppProviders';
+
+const dmSans = DM_Sans({
+  subsets: ['latin'],
+  variable: '--font-dm-sans',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'CineTag — AI-Powered Video Intelligence',
@@ -18,11 +26,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body className="min-h-screen flex flex-col">
-        <TopNav />
-        <main className="flex-1">{children}</main>
-        <FooterDebug />
+    <html lang="en" className={`dark ${dmSans.variable}`}>
+      <body className="min-h-screen flex flex-col font-sans antialiased">
+        <AppProviders>
+          <TopNav />
+          <main className="flex-1">{children}</main>
+          <FooterDebug />
+        </AppProviders>
       </body>
     </html>
   );

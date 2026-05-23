@@ -3,7 +3,7 @@
   "/jobs/page": "app/jobs/page.js",
   "/review/page": "app/review/page.js",
   "/upload/page": "app/upload/page.js",
+  "/search/page": "app/search/page.js",
   "/page": "app/page.js",
-  "/videos/[id]/page": "app/videos/[id]/page.js",
-  "/search/page": "app/search/page.js"
+  "/videos/[id]/page": "app/videos/[id]/page.js"
 }
