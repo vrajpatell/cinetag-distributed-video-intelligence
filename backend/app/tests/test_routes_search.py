@@ -266,9 +266,20 @@ def test_semantic_search_pgvector_mode_does_not_use_full_scan(monkeypatch):
         ),
     )
     monkeypatch.setattr(routes_search.EmbeddingRecord, "embedding_vector", _PgVectorField())
+    monkeypatch.setattr(
+        routes_search,
+        "media_fields_for_video",
+        lambda _db, _video, *, request=None, include_playback=False: {
+            "poster_url": None,
+            "thumbnail_urls": [],
+            "preview_url": None,
+            "has_preview": False,
+        },
+    )
 
     fake_db = _FakeSession()
-    result = semantic(Query(query="vector"), db=fake_db)
+    fake_request = SimpleNamespace()
+    result = semantic(Query(query="vector"), fake_request, db=fake_db)
     assert result
     assert result[0]["title"] == "Vector Film"
     assert fake_db.full_scan_called is False
