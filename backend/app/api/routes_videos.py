@@ -26,6 +26,10 @@ from app.db.models import (
 from app.db.session import get_db
 from app.storage import get_object_store
 from app.storage.local_store import LocalStore, UnsafeStorageKey
+from app.media.urls import (
+    media_fields_for_video,
+    preview_storage_key,
+)
 
 router = APIRouter(prefix="/videos")
 logger = logging.getLogger(__name__)
@@ -63,7 +67,12 @@ def _guess_video_content_type(storage_key: str | None) -> str:
     return "video/mp4"
 
 
-def _serialize_video(video: VideoAsset, db: Session) -> dict[str, Any]:
+def _serialize_video(
+    video: VideoAsset,
+    db: Session,
+    *,
+    request: Request | None = None,
+) -> dict[str, Any]:
     tags = db.query(GeneratedTag).filter_by(video_id=video.id).all()
     job = (
         db.query(ProcessingJob)
@@ -79,7 +88,7 @@ def _serialize_video(video: VideoAsset, db: Session) -> dict[str, Any]:
         getattr(video, "summary", None)
         or (transcript.text[:300] if transcript else None)
     )
-    return {
+    payload = {
         "id": video.id,
         "title": video.title,
         "description": description,
@@ -115,10 +124,13 @@ def _serialize_video(video: VideoAsset, db: Session) -> dict[str, Any]:
         "updated_at": video.updated_at.isoformat() if video.updated_at else None,
         "storage_key": video.storage_key,
     }
+    payload.update(media_fields_for_video(db, video, request=request))
+    return payload
 
 
 @router.get("")
 def list_videos(
+    request: Request,
     db: Session = Depends(get_db),
     page: int | None = Query(default=None, ge=1),
     page_size: int | None = Query(default=None, ge=1),
@@ -165,7 +177,7 @@ def list_videos(
     q = q.order_by(VideoAsset.id.desc())
     raw = paginate_sa_query(q, page=page, page_size=page_size)
     return {
-        "items": [_serialize_video(v, db) for v in raw["items"]],
+        "items": [_serialize_video(v, db, request=request) for v in raw["items"]],
         "page": raw["page"],
         "page_size": raw["page_size"],
         "total": raw["total"],
@@ -174,11 +186,11 @@ def list_videos(
 
 
 @router.get("/{video_id}")
-def get_video(video_id: int, db: Session = Depends(get_db)):
+def get_video(video_id: int, request: Request, db: Session = Depends(get_db)):
     video = db.get(VideoAsset, video_id)
     if not video:
         raise HTTPException(404)
-    return _serialize_video(video, db)
+    return _serialize_video(video, db, request=request)
 
 
 @router.get("/{video_id}/frames")
@@ -204,6 +216,7 @@ def tags(video_id: int, db: Session = Depends(get_db)):
 @router.post("/{video_id}/publish")
 def publish_video(
     video_id: int,
+    request: Request,
     _auth: RequireReviewerOrAdmin,
     db: Session = Depends(get_db),
 ):
@@ -256,7 +269,7 @@ def publish_video(
     )
     db.commit()
     db.refresh(video)
-    return _serialize_video(video, db)
+    return _serialize_video(video, db, request=request)
 
 
 # ---------------------------------------------------------------------------
@@ -343,41 +356,44 @@ def get_playback(
     else:
         playback_url = str(request.url_for("video_stream", video_id=video.id))
 
-    poster_url: str | None = None
-    first_frame = (
-        db.query(FrameSample)
-        .filter_by(video_id=video.id)
-        .order_by(FrameSample.timestamp_seconds.asc())
-        .first()
-    )
-    if first_frame and first_frame.storage_key:
-        try:
-            if _is_gcs_backend():
-                poster_url = store.generate_signed_url(
-                    first_frame.storage_key,
-                    expiration_seconds=_POSTER_URL_TTL_SECONDS,
-                    method="GET",
-                )
-            else:
-                poster_url = str(
-                    request.url_for("frame_stream", frame_id=first_frame.id)
-                )
-        except Exception:
-            # Poster is best-effort — never block playback on a thumbnail.
-            logger.warning(
-                "poster_url_failed video_id=%s frame_id=%s",
-                video.id,
-                first_frame.id,
-                exc_info=True,
-            )
+    media = media_fields_for_video(db, video, request=request)
 
     return {
         "url": playback_url,
         "content_type": _guess_video_content_type(video.storage_key),
         "expires_in_seconds": _PLAYBACK_URL_TTL_SECONDS,
-        "poster_url": poster_url,
+        "poster_url": media.get("poster_url"),
+        "thumbnail_urls": media.get("thumbnail_urls") or [],
+        "preview_url": media.get("preview_url"),
+        "has_preview": media.get("has_preview", False),
         "duration_seconds": video.duration_seconds,
         "file_size_bytes": video.file_size_bytes,
+    }
+
+
+@router.get("/{video_id}/preview")
+def get_preview(
+    video_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Return short-lived preview clip URL for rail autoplay (lazy load)."""
+    video = db.get(VideoAsset, video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+    if video.status in _NON_PLAYABLE_VIDEO_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Video preview unavailable in status {video.status!r}",
+        )
+    media = media_fields_for_video(db, video, request=request)
+    if not media.get("preview_url"):
+        raise HTTPException(status_code=404, detail="Preview clip not generated yet")
+    return {
+        "preview_url": media["preview_url"],
+        "poster_url": media.get("poster_url"),
+        "thumbnail_urls": media.get("thumbnail_urls") or [],
+        "expires_in_seconds": _POSTER_URL_TTL_SECONDS,
     }
 
 
@@ -543,4 +559,66 @@ def stream_frame_image(
         _iter_file_range(path, 0, path.stat().st_size),
         media_type=media_type,
         headers={"Cache-Control": "private, max-age=300"},
+    )
+
+
+@router.get("/{video_id}/preview/stream", name="preview_stream")
+def stream_preview_clip(
+    video_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Range-aware streaming of the short preview MP4 (local dev only)."""
+    if _is_gcs_backend():
+        raise HTTPException(
+            status_code=400,
+            detail="Preview stream endpoint is disabled when GCS backend is active",
+        )
+
+    video = db.get(VideoAsset, video_id)
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    storage_key = preview_storage_key(video_id)
+    try:
+        path = _local_path_for_key(storage_key)
+    except UnsafeStorageKey:
+        raise HTTPException(status_code=400, detail="Invalid storage key")
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=404, detail="Preview clip not found")
+
+    file_size = path.stat().st_size
+    content_type = "video/mp4"
+
+    range_header = request.headers.get("range")
+    if range_header:
+        parsed = _parse_range_header(range_header, file_size)
+        if parsed is None:
+            return StreamingResponse(
+                iter(()),
+                status_code=416,
+                headers={"Content-Range": f"bytes */{file_size}"},
+            )
+        start, end = parsed
+        length = end - start + 1
+        return StreamingResponse(
+            _iter_file_range(path, start, length),
+            status_code=206,
+            media_type=content_type,
+            headers={
+                "Content-Range": f"bytes {start}-{end}/{file_size}",
+                "Accept-Ranges": "bytes",
+                "Content-Length": str(length),
+                "Cache-Control": "private, max-age=300",
+            },
+        )
+
+    return StreamingResponse(
+        _iter_file_range(path, 0, file_size),
+        media_type=content_type,
+        headers={
+            "Content-Length": str(file_size),
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "private, max-age=300",
+        },
     )

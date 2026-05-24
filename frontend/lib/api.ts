@@ -4,6 +4,7 @@ import type {
   ReviewItem,
   SearchResult,
   VideoPlaybackResponse,
+  VideoPreviewResponse,
   VideoSummary,
 } from './types';
 
@@ -186,6 +187,10 @@ export async function getVideoPlayback(
   id: string | number,
 ): Promise<VideoPlaybackResponse> {
   return apiFetch<VideoPlaybackResponse>(`/api/videos/${id}/playback`);
+}
+
+export async function getVideoPreview(id: number): Promise<VideoPreviewResponse> {
+  return apiFetch<VideoPreviewResponse>(`/api/videos/${id}/preview`);
 }
 
 export interface JobListParams {

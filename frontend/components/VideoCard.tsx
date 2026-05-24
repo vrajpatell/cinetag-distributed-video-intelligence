@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import { Play } from 'lucide-react';
 import type { VideoSummary } from '@/lib/types';
-import { formatDuration } from '@/lib/format';
 import { gradientForId } from '@/lib/demo-data';
 import JobStatusBadge from './JobStatusBadge';
+import VideoPreviewMedia from './VideoPreviewMedia';
 import { ScaleOnHover } from '@/components/motion/Motion';
 
 export default function VideoCard({
@@ -26,16 +26,25 @@ export default function VideoCard({
         href={`/videos/${video.id}`}
         className="group relative block w-full shrink-0 overflow-hidden rounded-xl border border-cinetag-border/70 bg-cinetag-panel/80 transition-colors duration-300 hover:border-cinetag-red/40 hover:shadow-cardHover"
       >
-        <div className={`relative aspect-video w-full ${grad}`}>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/0 to-black/30" />
-          <div className="absolute left-2.5 top-2.5 flex items-center gap-1.5">
+        <div className="relative">
+          <VideoPreviewMedia
+            videoId={video.id}
+            title={video.title}
+            posterUrl={video.poster_url}
+            previewUrl={video.preview_url}
+            thumbnailUrls={video.thumbnail_urls}
+            thumbnailGradient={grad}
+            durationSeconds={video.duration_seconds}
+            isDemo={video.isDemo}
+          />
+          <div className="absolute left-2.5 top-2.5 z-10 flex items-center gap-1.5 pointer-events-none">
             {video.processingStage ? (
               <JobStatusBadge stage={video.processingStage} compact />
             ) : video.status ? (
               <JobStatusBadge status={video.status} compact />
             ) : null}
           </div>
-          <div className="absolute right-2.5 top-2.5">
+          <div className="absolute right-2.5 top-2.5 z-10 pointer-events-none">
             {video.confidence != null ? (
               <span className="chip-neutral !text-[10px]">
                 <span className="text-white/50">conf</span>
@@ -43,13 +52,7 @@ export default function VideoCard({
               </span>
             ) : null}
           </div>
-          {video.duration_seconds != null ? (
-            <div className="absolute bottom-2.5 right-2.5 rounded bg-black/65 px-1.5 py-0.5 font-mono text-[10px] text-white/90">
-              {formatDuration(video.duration_seconds)}
-            </div>
-          ) : null}
-          <div className="absolute inset-x-0 bottom-0 hidden h-12 bg-gradient-to-t from-black/80 to-transparent group-hover:block" />
-          <div className="absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100">
+          <div className="absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 pointer-events-none">
             <div className="grid h-12 w-12 place-items-center rounded-full bg-cinetag-red/95 ring-2 ring-white/20 shadow-glow">
               <Play className="h-4 w-4 fill-white text-white ml-0.5" aria-hidden />
             </div>

@@ -1,6 +1,8 @@
 import Link from 'next/link';
+import FeaturedPreviewCard from '@/components/FeaturedPreviewCard';
+import type { VideoSummary } from '@/lib/types';
 
-export default function HeroBanner() {
+export default function HeroBanner({ featured }: { featured?: VideoSummary | null }) {
   return (
     <section className="relative overflow-hidden">
       <div className="pointer-events-none absolute inset-0 grid-bg opacity-[0.35]" />
@@ -68,7 +70,7 @@ export default function HeroBanner() {
         </div>
 
         <div className="lg:col-span-5">
-          <FeaturedIntelligenceCard />
+          {featured ? <FeaturedPreviewCard video={featured} /> : <FeaturedIntelligenceCard />}
         </div>
       </div>
     </section>

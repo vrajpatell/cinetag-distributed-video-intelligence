@@ -65,11 +65,14 @@ export default async function Home() {
   );
   const trending = [...videos].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0));
 
+  const featured =
+    [...videos].sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0))[0] ?? null;
+
   const metrics = buildMetrics(real || []);
 
   return (
     <div className="space-y-12 pb-12">
-      <HeroBanner />
+      <HeroBanner featured={featured} />
 
       <MetricStrip metrics={metrics} />
 

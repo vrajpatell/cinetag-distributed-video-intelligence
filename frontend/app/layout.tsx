@@ -4,6 +4,7 @@ import { DM_Sans } from 'next/font/google';
 import TopNav from '@/components/TopNav';
 import FooterDebug from '@/components/FooterDebug';
 import AppProviders from '@/components/providers/AppProviders';
+import { PreviewPreferencesProvider } from '@/components/providers/PreviewPreferencesProvider';
 
 const dmSans = DM_Sans({
   subsets: ['latin'],
@@ -29,9 +30,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`dark ${dmSans.variable}`}>
       <body className="min-h-screen flex flex-col font-sans antialiased">
         <AppProviders>
-          <TopNav />
-          <main className="flex-1">{children}</main>
-          <FooterDebug />
+          <PreviewPreferencesProvider>
+            <TopNav />
+            <main className="flex-1">{children}</main>
+            <FooterDebug />
+          </PreviewPreferencesProvider>
         </AppProviders>
       </body>
     </html>

@@ -6,8 +6,8 @@ import { Search, ChevronRight } from 'lucide-react';
 import { useSemanticSearch } from '@/lib/hooks/use-search';
 import { SEARCH_EXAMPLES, gradientForId } from '@/lib/demo-data';
 import type { SearchResult } from '@/lib/types';
-import { formatDuration } from '@/lib/format';
 import { FadeIn, StaggerChildren, StaggerItem } from '@/components/motion/Motion';
+import VideoPreviewMedia from '@/components/VideoPreviewMedia';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -263,13 +263,18 @@ function ResultRow({ r }: { r: SearchResult }) {
       href={`/videos/${r.video_id}`}
       className="panel group flex items-center gap-4 p-3 transition-all duration-200 hover:border-cinetag-red/40 hover:-translate-y-0.5"
     >
-      <div className={`relative h-20 w-32 shrink-0 overflow-hidden rounded-md ${grad}`}>
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-black/10" />
-        {r.duration_seconds != null ? (
-          <div className="absolute bottom-1.5 right-1.5 rounded bg-black/65 px-1.5 py-0.5 font-mono text-[10px] text-white/90">
-            {formatDuration(r.duration_seconds)}
-          </div>
-        ) : null}
+      <div className="relative h-20 w-32 shrink-0 overflow-hidden rounded-md">
+        <VideoPreviewMedia
+          videoId={r.video_id}
+          title={r.title}
+          posterUrl={r.poster_url}
+          previewUrl={r.preview_url}
+          thumbnailUrls={r.thumbnail_urls}
+          thumbnailGradient={grad}
+          durationSeconds={r.duration_seconds}
+          isDemo={r.isDemo}
+          className="!aspect-auto h-full"
+        />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">

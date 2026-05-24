@@ -92,6 +92,7 @@ export default function VideoPlayer({
 
   if (state.kind === 'ready') {
     const { payload } = state;
+    const poster = payload.poster_url || posterUrl || undefined;
     return (
       <div className={containerClass}>
         {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
@@ -99,7 +100,7 @@ export default function VideoPlayer({
           ref={videoRef}
           className="h-full w-full bg-black"
           src={payload.url}
-          poster={payload.poster_url || posterUrl || undefined}
+          poster={poster}
           controls
           playsInline
           preload="metadata"

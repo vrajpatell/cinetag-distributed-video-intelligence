@@ -38,6 +38,7 @@ from app.observability.metrics import (
     worker_stage_failures_total,
 )
 from app.storage import get_object_store
+from app.media.urls import preview_storage_key
 
 celery = Celery(
     __name__,
@@ -127,6 +128,10 @@ def _delete_outputs_from_stage(db: Session, video_id: int, start_stage: str) -> 
         db.query(FrameSample).filter_by(video_id=video_id).delete(
             synchronize_session=False
         )
+        try:
+            get_object_store().delete_object(preview_storage_key(video_id))
+        except Exception:
+            logger.debug("preview_delete_on_rerun video_id=%s", video_id, exc_info=True)
     if start <= STAGE_INDEX["scene_segmentation"]:
         db.query(SceneSegment).filter_by(video_id=video_id).delete(
             synchronize_session=False
@@ -465,6 +470,48 @@ def _extract_audio(local_path: str, temp_dir: str, video_id: int) -> str | None:
         return None
 
 
+def _generate_preview_clip_bytes(local_path: str, duration_seconds: float | None) -> bytes | None:
+    """Extract a short, muted, low-bitrate MP4 for rail hover autoplay."""
+    if shutil.which("ffmpeg") is None:
+        return None
+    duration = max(float(duration_seconds or 60.0), 1.0)
+    preview_len = min(8.0, max(3.0, duration * 0.12))
+    with tempfile.TemporaryDirectory(prefix="cinetag-preview-") as tmp:
+        out = Path(tmp) / "preview.mp4"
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-ss",
+                    "0",
+                    "-i",
+                    local_path,
+                    "-t",
+                    str(preview_len),
+                    "-an",
+                    "-vf",
+                    "scale=480:-2",
+                    "-c:v",
+                    "libx264",
+                    "-preset",
+                    "veryfast",
+                    "-crf",
+                    "28",
+                    "-movflags",
+                    "+faststart",
+                    str(out),
+                ],
+                check=True,
+                capture_output=True,
+                timeout=120,
+            )
+            return out.read_bytes() if out.exists() and out.stat().st_size > 0 else None
+        except Exception:
+            logger.exception("ffmpeg_preview_clip_failed path=%s", local_path)
+            return None
+
+
 def _frame_sampling(db: Session, video: VideoAsset, ctx: PipelineContext) -> None:
     store = get_object_store()
     used_placeholder = False
@@ -503,6 +550,24 @@ def _frame_sampling(db: Session, video: VideoAsset, ctx: PipelineContext) -> Non
             "frame_sampling",
             "ffmpeg unavailable; persisted 1x1 placeholder JPEGs",
         )
+
+    preview_key = preview_storage_key(video.id)
+    try:
+        store.delete_object(preview_key)
+    except Exception:
+        logger.debug("preview_delete_skipped key=%s", preview_key, exc_info=True)
+
+    if ctx.original_path:
+        preview_bytes = _generate_preview_clip_bytes(ctx.original_path, video.duration_seconds)
+        if preview_bytes:
+            store.upload_bytes(preview_key, preview_bytes, content_type="video/mp4")
+        elif settings.media_strict:
+            raise RuntimeError("frame_sampling failed: could not generate preview clip")
+        else:
+            ctx.note_degraded(
+                "frame_sampling",
+                "preview clip unavailable; posters only for rail autoplay",
+            )
 
 
 def _scene_segmentation(db: Session, video: VideoAsset, ctx: PipelineContext) -> None:

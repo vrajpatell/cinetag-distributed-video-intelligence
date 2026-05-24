@@ -39,6 +39,13 @@ export type TagType =
 export type TagSource = 'transcript' | 'visual_frame' | 'llm' | 'metadata' | 'manual';
 export type TagReviewStatus = 'pending_review' | 'approved' | 'rejected';
 
+export interface VideoMediaFields {
+  poster_url?: string | null;
+  thumbnail_urls?: string[];
+  preview_url?: string | null;
+  has_preview?: boolean;
+}
+
 export interface VideoSummary {
   id: number | string;
   title: string;
@@ -48,6 +55,10 @@ export interface VideoSummary {
   status?: VideoStatus | string;
   thumbnailKey?: string;
   thumbnailGradient?: string;
+  poster_url?: string | null;
+  thumbnail_urls?: string[];
+  preview_url?: string | null;
+  has_preview?: boolean;
   tags?: { value: string; type: TagType; confidence?: number }[];
   genres?: string[];
   moods?: string[];
@@ -115,6 +126,10 @@ export interface SearchResult {
   explanation?: string;
   matched_tags?: { value: string; type: TagType }[];
   thumbnailGradient?: string;
+  poster_url?: string | null;
+  thumbnail_urls?: string[];
+  preview_url?: string | null;
+  has_preview?: boolean;
   duration_seconds?: number;
   genres?: string[];
   moods?: string[];
@@ -127,8 +142,18 @@ export interface VideoPlaybackResponse {
   content_type: string;
   expires_in_seconds: number;
   poster_url?: string | null;
+  thumbnail_urls?: string[];
+  preview_url?: string | null;
+  has_preview?: boolean;
   duration_seconds?: number | null;
   file_size_bytes?: number | null;
+}
+
+export interface VideoPreviewResponse {
+  preview_url: string;
+  poster_url?: string | null;
+  thumbnail_urls?: string[];
+  expires_in_seconds: number;
 }
 
 export interface Paginated<T> {

@@ -109,6 +109,7 @@ def test_playback_local_returns_poster_url_when_frame_exists(client, db_session)
     db_session.add(frame)
     db_session.commit()
     db_session.refresh(frame)
+    _write_local_object(frame.storage_key, b"\xff\xd8\xff\xd9")
 
     res = client.get(f"/api/videos/{v.id}/playback")
     assert res.status_code == 200, res.text
@@ -134,7 +135,7 @@ def test_playback_gcs_returns_signed_url(client, db_session):
 
     with patch.object(settings, "storage_backend", "gcs"), patch.object(
         routes_videos, "get_object_store", lambda: _FakeStore()
-    ):
+    ), patch("app.media.urls.get_object_store", lambda: _FakeStore()):
         res = client.get(f"/api/videos/{v.id}/playback")
 
     assert res.status_code == 200, res.text

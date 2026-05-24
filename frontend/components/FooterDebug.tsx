@@ -1,4 +1,7 @@
+'use client';
+
 import { API_BASE_URL } from '@/lib/api';
+import PreviewSettingsPanel from '@/components/PreviewSettingsPanel';
 
 export default function FooterDebug() {
   const env = process.env.NEXT_PUBLIC_APP_ENV || process.env.NODE_ENV || 'dev';
@@ -7,7 +10,8 @@ export default function FooterDebug() {
   const apiLabel = API_BASE_URL || 'unset';
   return (
     <footer className="mt-16 border-t border-cinetag-border/70 bg-cinetag-ink/60">
-      <div className="mx-auto max-w-[1400px] px-5 py-6 text-[12px] text-white/55">
+      <div className="mx-auto max-w-[1400px] space-y-4 px-5 py-6 text-[12px] text-white/55">
+        <PreviewSettingsPanel />
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-3">
             <span className="inline-flex items-center gap-2 font-semibold text-white/80">

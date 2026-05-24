@@ -6,7 +6,7 @@ import time
 from collections import defaultdict
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.models import EmbeddingRecord, GeneratedTag, VideoAsset
 from app.db.session import get_db
+from app.media.urls import media_fields_for_video
 from app.ml.providers import embed_text
 from app.observability.metrics import (
     semantic_search_fallback_total,
@@ -110,7 +111,7 @@ def _apply_python_scan(db: Session, q: Query, target: list[float], target_len: i
 
 
 @router.post("/semantic")
-def semantic(q: Query, db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+def semantic(q: Query, request: Request, db: Session = Depends(get_db)) -> list[dict[str, Any]]:
     started = time.perf_counter()
     target = embed_text(q.query)
     target_len = len(target)
@@ -220,6 +221,7 @@ def semantic(q: Query, db: Session = Depends(get_db)) -> list[dict[str, Any]]:
                 "genres": genres,
                 "moods": moods,
                 "matched_tags": matched_tags,
+                **media_fields_for_video(db, v, request=request),
             }
         )
 
