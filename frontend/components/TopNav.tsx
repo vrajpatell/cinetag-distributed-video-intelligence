@@ -15,7 +15,7 @@ import {
   ClipboardCheck,
   Home,
 } from 'lucide-react';
-import { API_BASE_URL, getHealthSnapshot, type HealthSnapshot } from '@/lib/api';
+import { API_BASE_URL, DEMO_MODE, getHealthSnapshot, type HealthSnapshot } from '@/lib/api';
 import { queryKeys } from '@/lib/query-keys';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -39,7 +39,7 @@ export default function TopNav() {
   });
 
   const env = health.env || process.env.NEXT_PUBLIC_APP_ENV || process.env.NODE_ENV || 'dev';
-  const docsUrl = API_BASE_URL ? `${API_BASE_URL}/docs` : '/docs';
+  const docsUrl = API_BASE_URL ? `${API_BASE_URL}/docs` : null;
 
   const isActive = (href: string) =>
     href === '/' ? pathname === '/' : pathname === href || pathname.startsWith(`${href}/`);
@@ -87,12 +87,14 @@ export default function TopNav() {
             <span className="text-white/50">env</span>
             <span className="text-white/90">{env}</span>
           </span>
-          <Button variant="ghost" size="sm" className="hidden md:inline-flex !text-xs" asChild>
-            <a href={docsUrl} target="_blank" rel="noreferrer noopener">
-              API Docs
-              <ExternalLink className="h-3 w-3 opacity-60" />
-            </a>
-          </Button>
+          {docsUrl ? (
+            <Button variant="ghost" size="sm" className="hidden md:inline-flex !text-xs" asChild>
+              <a href={docsUrl} target="_blank" rel="noreferrer noopener">
+                API Docs
+                <ExternalLink className="h-3 w-3 opacity-60" />
+              </a>
+            </Button>
+          ) : null}
           <Button size="sm" className="hidden sm:inline-flex !text-xs" asChild>
             <Link href="/upload">
               <Upload className="h-3.5 w-3.5" />
@@ -132,15 +134,17 @@ export default function TopNav() {
                 </Link>
               );
             })}
-            <a
-              href={docsUrl}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm text-white/70 hover:bg-white/5 hover:text-white"
-            >
-              <ExternalLink className="h-4 w-4 opacity-70" />
-              API Docs
-            </a>
+            {docsUrl ? (
+              <a
+                href={docsUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm text-white/70 hover:bg-white/5 hover:text-white"
+              >
+                <ExternalLink className="h-4 w-4 opacity-70" />
+                API Docs
+              </a>
+            ) : null}
           </div>
         </div>
       ) : null}
@@ -157,8 +161,13 @@ function SystemHealthIndicator({ health }: { health: HealthSnapshot }) {
         : 'unknown';
   const dot =
     overall === 'ok' ? 'bg-emerald-400' : overall === 'down' ? 'bg-rose-500' : 'bg-amber-400';
-  const label =
-    overall === 'ok' ? 'All systems' : overall === 'down' ? 'API offline' : 'Health unknown';
+  const label = DEMO_MODE
+    ? 'Showcase online'
+    : overall === 'ok'
+      ? 'All systems'
+      : overall === 'down'
+        ? 'API offline'
+        : 'Health unknown';
   return (
     <span className="hidden sm:inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[11px] text-white/70">
       <Activity className="h-3 w-3 opacity-60" aria-hidden />

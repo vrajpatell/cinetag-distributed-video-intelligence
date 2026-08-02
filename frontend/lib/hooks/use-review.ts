@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ApiError, getReviewItems, patchTag } from '@/lib/api';
+import { ApiError, DEMO_MODE, getReviewItems, patchTag } from '@/lib/api';
 import { DEMO_REVIEW_ITEMS } from '@/lib/demo-data';
 import { queryKeys } from '@/lib/query-keys';
 import type { ReviewItem } from '@/lib/types';
@@ -14,6 +14,9 @@ export type ReviewQueryResult = {
 };
 
 async function fetchReviewItems(pageSize: number): Promise<ReviewQueryResult> {
+  if (DEMO_MODE) {
+    return { items: DEMO_REVIEW_ITEMS, usedDemo: true, loadError: null };
+  }
   try {
     const real = await getReviewItems({ page_size: pageSize });
     if (real.items.length > 0) {

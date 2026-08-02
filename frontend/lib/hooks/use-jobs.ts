@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ApiError, getJobs, retryJob } from '@/lib/api';
+import { ApiError, DEMO_MODE, getJobs, retryJob } from '@/lib/api';
 import { DEMO_JOBS } from '@/lib/demo-data';
 import { queryKeys } from '@/lib/query-keys';
 import type { JobSummary } from '@/lib/types';
@@ -14,6 +14,9 @@ export type JobsQueryResult = {
 };
 
 async function fetchJobs(pageSize: number): Promise<JobsQueryResult> {
+  if (DEMO_MODE) {
+    return { jobs: DEMO_JOBS, usedDemo: true, loadError: null };
+  }
   try {
     const real = await getJobs({ page_size: pageSize });
     if (real.items.length > 0) {

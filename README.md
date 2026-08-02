@@ -337,7 +337,9 @@ Run the complete stack on hardware you already own using Docker Compose and the 
 
 ### Optional Vercel frontend
 
-The recommended web deployment imports this repository into Vercel with **`frontend` as the Root Directory**. Set `NEXT_PUBLIC_API_BASE_URL` to the public HTTPS origin of the FastAPI service; Vercel then builds the Next.js app with `npm ci` and `npm run build` and creates Git-based preview deployments.
+The checked-in Vercel configuration deploys a free **showcase mode** with **`frontend` as the Root Directory**. Browse, Jobs, Review, Search, and video-detail screens use bundled demo data; uploads and inference are visibly disabled because the persistent Ollama/FFmpeg/Celery stack is not compatible with request-scoped Vercel Functions. No database, model API key, or paid integration is required for the showcase.
+
+To connect a separately hosted backend, set `NEXT_PUBLIC_DEMO_MODE=false` and `NEXT_PUBLIC_API_BASE_URL` to the public HTTPS FastAPI origin. Vercel builds the Next.js app with `npm ci` and `npm run build` and creates Git-based previews.
 
 The backend supports `CORS_ALLOWED_ORIGIN_REGEX` for project-scoped Vercel preview URLs. GCS must separately allow browser `PUT` requests from the production and preview frontend origins. Do not store credentials in `NEXT_PUBLIC_*` variables because those values are shipped to the browser.
 
