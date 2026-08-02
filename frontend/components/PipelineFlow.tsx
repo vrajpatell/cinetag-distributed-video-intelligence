@@ -23,7 +23,7 @@ export default function PipelineFlow({
               </h2>
               <p className="mt-1 max-w-2xl text-sm text-white/55">
                 Each stage is an independently retryable worker step. Backpressure is managed by
-                Redis-backed Celery queues; results are persisted to Cloud SQL with audit logs.
+                Valkey-backed Celery queues; results are persisted to PostgreSQL with audit logs.
               </p>
             </div>
             <div className="flex items-center gap-2 text-[11px] text-white/55">

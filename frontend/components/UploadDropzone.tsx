@@ -98,7 +98,7 @@ export default function UploadDropzone({
             <span className="mx-2 text-white/30">•</span>
             Max <span className="font-mono text-white/75">{maxSizeMb} MB</span>
             <span className="mx-2 text-white/30">•</span>
-            Direct-to-GCS signed PUT
+            Direct-to-storage upload
           </p>
           <input
             ref={inputRef}

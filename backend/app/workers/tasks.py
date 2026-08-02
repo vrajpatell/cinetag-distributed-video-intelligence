@@ -27,7 +27,7 @@ from app.db.models import (
     VideoAsset,
 )
 from app.db.session import SessionLocal
-from app.ml.providers import embed_text, generate_tag_bundle, transcribe_audio
+from app.ml.providers import describe_frame, embed_text, generate_tag_bundle, transcribe_audio
 from app.ml.tag_schema import TagBundle
 from app.observability.metrics import (
     jobs_failed_total,
@@ -530,7 +530,7 @@ def _frame_sampling(db: Session, video: VideoAsset, ctx: PipelineContext) -> Non
             )
         else:
             data = extracted
-            description = f"Representative frame sampled at {ts:.2f}s"
+            description = describe_frame(extracted, ts)
         store.upload_bytes(key, data, content_type="image/jpeg")
         db.add(
             FrameSample(
@@ -645,7 +645,11 @@ def _llm_tagging(db: Session, video: VideoAsset, ctx: PipelineContext) -> None:
             f"title={video.title}",
             f"metadata={video.duration_seconds}s {video.width}x{video.height} {video.codec}",
             f"transcript={(transcript.text if transcript else '')[:1000]}",
-            f"frames={len(frames)} scenes={len(scenes)}",
+            "visual_frames=" + " | ".join(
+                f"{frame.timestamp_seconds:.2f}s: {(frame.description or '')[:500]}"
+                for frame in frames
+            ),
+            f"scene_count={len(scenes)}",
         ]
     )
     bundle = generate_tag_bundle(prompt)
@@ -690,9 +694,13 @@ def _embedding(db: Session, video: VideoAsset, ctx: PipelineContext) -> None:
             "embedding_vector": vector,
             "embedding_dimension": dimension,
             "embedding_provider": settings.embedding_provider,
-            "embedding_model": settings.openai_embedding_model
-            if settings.embedding_provider == "openai"
-            else "mock-embedding",
+            "embedding_model": (
+                settings.openai_embedding_model
+                if settings.embedding_provider == "openai"
+                else settings.ollama_embedding_model
+                if settings.embedding_provider == "ollama"
+                else "mock-embedding"
+            ),
         }
 
     transcript = db.query(Transcript).filter_by(video_id=video.id).first()

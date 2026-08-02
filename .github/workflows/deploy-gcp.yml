@@ -39,7 +39,7 @@ jobs:
           python-version: '3.11'
           cache: pip
       - name: Install backend + dev tools
-        run: pip install -e ./backend pytest ruff
+        run: pip install -e "./backend[gcp,openai]" pytest ruff
       - name: Ruff lint
         working-directory: backend
         run: ruff check app

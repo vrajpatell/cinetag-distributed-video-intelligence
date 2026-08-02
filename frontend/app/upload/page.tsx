@@ -8,7 +8,7 @@ import UploadProgress from '@/components/UploadProgress';
 import ErrorToast, { type ErrorDetail } from '@/components/ErrorToast';
 import PipelineFlow from '@/components/PipelineFlow';
 import {
-  uploadVideoDirectToGcs,
+  uploadVideoDirect,
   UploadError,
   type UploadProgressInfo,
   type UploadResult,
@@ -34,7 +34,7 @@ export default function UploadPage() {
     setBusy(true);
     abortRef.current = new AbortController();
     try {
-      const res = await uploadVideoDirectToGcs({
+      const res = await uploadVideoDirect({
         file,
         title: title || undefined,
         signal: abortRef.current.signal,
@@ -88,12 +88,12 @@ export default function UploadPage() {
       <header className="space-y-2">
         <span className="chip-red !text-[11px]">
           <span className="h-1.5 w-1.5 rounded-full bg-cinetag-redGlow animate-pulseSoft" />
-          Direct-to-GCS · signed PUT
+          Direct-to-storage upload
         </span>
         <h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">Upload a video</h1>
         <p className="max-w-2xl text-sm text-white/60">
-          CineTag never proxies large files through the API. Files stream directly to Google Cloud
-          Storage using a short-lived signed URL, then a worker job picks up the asset for tagging.
+          Local mode writes to shared storage; cloud mode can use a short-lived signed URL. A worker
+          then picks up the asset for tagging.
         </p>
       </header>
 
@@ -151,8 +151,8 @@ export default function UploadPage() {
           <SidePanel
             title="What happens next?"
             items={[
-              ['Init', 'POST /api/uploads/init reserves a video row and returns a signed GCS URL.'],
-              ['PUT', 'Browser streams the file directly to Cloud Storage with progress events.'],
+              ['Init', 'POST /api/uploads/init reserves a video row and returns an upload URL.'],
+              ['PUT', 'Browser streams the file to the configured storage backend with progress events.'],
               ['Complete', 'POST /api/uploads/complete confirms the object and creates a job.'],
               ['Pipeline', 'Worker runs metadata, frames, transcript, tags, and embeddings.'],
             ]}
@@ -160,10 +160,10 @@ export default function UploadPage() {
           <SidePanel
             title="Production tips"
             items={[
-              ['CORS', 'Allow PUT from your frontend origin on the GCS bucket.'],
-              ['IAM', 'Cloud Run service account needs roles/iam.serviceAccountTokenCreator.'],
-              ['Lifecycle', 'Add a 7-day delete rule for upload_pending/ to clean orphans.'],
-              ['Limits', 'Worker autoscales on queue depth; tune max concurrency per asset.'],
+              ['Storage', 'Local mode uses a shared volume; cloud mode requires bucket CORS.'],
+              ['Models', 'Pull the Ollama models before processing the first video.'],
+              ['Disk', 'Keep enough free space for originals, frames, audio, and model caches.'],
+              ['Workers', 'Start with one worker on CPU-only machines to avoid memory pressure.'],
             ]}
           />
         </aside>
@@ -205,7 +205,7 @@ function UploadSuccess({ result }: { result: UploadResult }) {
         <h3 className="text-base font-semibold text-white">Queued for analysis</h3>
       </div>
       <p className="mt-1 text-[12.5px] text-white/65">
-        Your video is now in Cloud Storage and a processing job has been enqueued.
+        Your video is now in object storage and a processing job has been enqueued.
       </p>
       <dl className="mt-4 grid grid-cols-1 gap-2 md:grid-cols-3">
         <Field k="video_id" v={String(result.video_id)} />
@@ -241,7 +241,7 @@ function stageMessage(stage: UploadStage): string {
     case 'preparing_signed_upload':
       return 'The API could not return a signed upload URL.';
     case 'uploading_to_cloud_storage':
-      return 'Cloud Storage rejected the file transfer.';
+      return 'Object storage rejected the file transfer.';
     case 'creating_processing_job':
       return 'The video reached storage but the worker job could not be enqueued.';
     default:
@@ -254,7 +254,7 @@ function stageHint(stage: UploadStage): string {
     case 'preparing_signed_upload':
       return 'Check NEXT_PUBLIC_API_BASE_URL and that POST /api/uploads/init is reachable.';
     case 'uploading_to_cloud_storage':
-      return 'Verify GCS bucket CORS allows PUT from this origin, and the SA can sign URLs.';
+      return 'Verify the local upload route or the cloud bucket CORS and URL-signing configuration.';
     case 'creating_processing_job':
       return 'Make sure the worker is online and POST /api/uploads/complete responds.';
     default:

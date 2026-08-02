@@ -31,7 +31,7 @@ if (IS_BROWSER && IS_PROD && !API_BASE_URL) {
   // would otherwise hit the frontend's own origin.
   throw new Error(
     '[CineTag] NEXT_PUBLIC_API_BASE_URL is required in production. ' +
-      'Pass it as a build arg to the frontend Docker image.',
+      'Set it in the Vercel project environment or pass it as a frontend Docker build arg.',
   );
 }
 

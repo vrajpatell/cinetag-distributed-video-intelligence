@@ -120,7 +120,7 @@ function CtaSplit() {
           <div className="text-[11px] uppercase tracking-wider text-white/55">Ingest</div>
           <h3 className="mt-1 text-xl font-bold tracking-tight">Bring your own video</h3>
           <p className="mt-1 text-sm text-white/60">
-            CineTag uses signed direct-to-GCS uploads so the API never proxies large files. Track progress
+            CineTag supports shared local storage and signed cloud uploads. Track progress
             live, then watch the worker pipeline take over.
           </p>
           <a href="/upload" className="btn-primary mt-4">Open uploader</a>

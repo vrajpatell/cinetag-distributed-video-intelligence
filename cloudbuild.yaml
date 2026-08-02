@@ -18,6 +18,8 @@ steps:
   name: gcr.io/cloud-builders/docker
   args:
     - build
+    - --build-arg
+    - BACKEND_EXTRAS=gcp,openai
     - -t
     - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-api:latest
     - -t
@@ -28,6 +30,8 @@ steps:
   name: gcr.io/cloud-builders/docker
   args:
     - build
+    - --build-arg
+    - BACKEND_EXTRAS=gcp,openai
     - -t
     - ${_REGION}-docker.pkg.dev/${_PROJECT_ID}/${_REPOSITORY}/cinetag-worker:latest
     - -t

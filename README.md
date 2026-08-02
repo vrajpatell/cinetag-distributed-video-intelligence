@@ -1,6 +1,6 @@
 # CineTag — AI-Powered Video Intelligence Platform
 
-> Cloud-native video intelligence for tagging, discovery, and recommendation-ready metadata — built on GCP.
+> Local-first video intelligence using open-source models and infrastructure, with no required cloud account or metered AI API.
 
 ---
 
@@ -18,10 +18,10 @@
 10. [Semantic search and embeddings](#10-semantic-search-and-embeddings)
 11. [Queues, workers, and dispatch](#11-queues-workers-and-dispatch)
 12. [Review, publish, and governance](#12-review-publish-and-governance)
-13. [Infrastructure on GCP](#13-infrastructure-on-gcp)
+13. [Infrastructure options](#13-infrastructure-options)
 14. [Observability](#14-observability)
 15. [Local development](#15-local-development)
-16. [GCP deployment](#16-gcp-deployment)
+16. [Deployment options](#16-deployment-options)
 17. [Configuration reference](#17-configuration-reference)
 18. [Documentation map](#18-documentation-map)
 19. [Limitations and natural extensions](#19-limitations-and-natural-extensions)
@@ -39,9 +39,9 @@ It is intentionally **not** a Netflix-style playback product. There is no adapti
 
 The codebase is suitable as:
 
-- A **portfolio-grade reference** for how to wire Next.js, FastAPI, object storage, Postgres, workers, and GCP services into one coherent product.
+- A **portfolio-grade reference** for how to wire Next.js, FastAPI, local object storage, PostgreSQL, workers, and open-source ML into one coherent product.
 - A **teaching artifact** for ingestion → queue → worker stages → persistence → API → UI loops.
-- A **starting point** for teams that want to experiment with LLM tagging, pgvector search, or Pub/Sub–backed workers without building everything from scratch.
+- A **starting point** for teams that want to experiment with local LLM tagging, offline transcription, semantic search, or distributed workers without building everything from scratch.
 
 ---
 
@@ -51,7 +51,7 @@ The platform combines four capability layers that mirror how large catalogs are 
 
 ### Ingestion and storage
 
-- **Primary path:** browser-initiated **signed URL upload** to Google Cloud Storage (or a local equivalent in dev): the API never buffers multi-gigabyte files.
+- **Local path:** browser upload to a shared filesystem volume; optional cloud mode uses browser-initiated signed URLs to GCS so the API does not buffer large files.
 - **Validation:** content types, maximum size, safe filenames, reserved `VideoAsset` rows, and post-upload object existence checks.
 - **Legacy path:** small dev uploads via a legacy route (with size limits and guidance toward signed URLs for real files).
 
@@ -64,7 +64,7 @@ The platform combines four capability layers that mirror how large catalogs are 
 ### AI and discovery
 
 - **LLM tagging** from transcript + visual/scene context: typed tags (e.g. genre, mood, theme, object, scene, moderation, entity) with confidence, rationale, and source attribution.
-- **Transcription** (mock or OpenAI Whisper-style, configurable).
+- **Transcription** with local faster-whisper by default, plus deterministic mock and optional external providers.
 - **Embeddings** for semantic search and related-content signals; search supports **pgvector** (cosine) when enabled and falls back to a **Python cosine** path for local or compatibility scenarios.
 - UI surfaces **semantic search**, **related rails**, and **explainable** match reasons where applicable.
 
@@ -105,30 +105,23 @@ The repository ties together **frontend progress UX** (XHR upload with speed and
 ## 4. Architecture at a glance
 
 ```
-       Browser (Next.js · Cloud Run)
-              │
-   signed PUT │           control-plane API
-       to GCS │           ┌───────────────┐
-              ▼           │  FastAPI      │
-        ┌──────────┐      │  Cloud Run    │
-        │   GCS    │◄────►│  /api/uploads │
-        │ originals│      │  /api/jobs    │
-        └──────────┘      │  /api/videos  │
-              │           │  /api/search  │
-              ▼           │  /api/review  │
-       Worker service     └───────────────┘
-       (Cloud Run: health + job executor)
-              │   Celery worker and/or Pub/Sub consumer
-              │   metadata · frames · scenes
-              │   transcripts · LLM tags · embeddings
-              ▼
-        Cloud SQL (Postgres, optional pgvector) ◄──── Memorystore Redis (Celery / cache)
-              │
-              ▼
-       Search, review, and recommendation-oriented UI
+       Browser (Next.js)
+              |
+              v
+       FastAPI control plane <----> PostgreSQL + pgvector
+              |                         |
+              v                         |
+       Celery + Valkey queue            |
+              |                         |
+              v                         |
+       Local worker --------------------+
+       FFmpeg + faster-whisper + Ollama
+              |
+              v
+       Shared local media volume
 ```
 
-**Dispatch options:** jobs can be published through **Redis-backed Celery**, or through **Google Pub/Sub** when configured; the API uses a small queue abstraction so the rest of the code stays the same. See [Queues, workers, and dispatch](#11-queues-workers-and-dispatch).
+The default topology runs entirely through Docker Compose. GCP storage, Pub/Sub, Cloud Run, and Vercel remain optional deployment adapters. See [Queues, workers, and dispatch](#11-queues-workers-and-dispatch).
 
 ---
 
@@ -151,14 +144,15 @@ Operators verify deployments with health and readiness probes, logs, and Prometh
 |------|---------|
 | Frontend | Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS |
 | Backend | FastAPI, SQLAlchemy, Alembic, Pydantic Settings |
-| Workers | Celery (Redis), optional **Pub/Sub** consumer for GCP-native pull |
-| Data | PostgreSQL 15 (Cloud SQL in GCP), Redis (Memorystore in GCP) |
-| Objects | GCS (production) or local filesystem (dev) |
-| AI | Pluggable **mock** vs **OpenAI** for LLM, embeddings, and transcription |
+| Workers | Celery with Valkey; optional Pub/Sub adapter |
+| Data | PostgreSQL 16 with pgvector, Valkey |
+| Objects | Shared local filesystem; optional GCS adapter |
+| AI | Ollama + Qwen2 for structured tags, Granite Vision for frames, faster-whisper for STT, `all-minilm` embeddings |
+| Media | FFmpeg and ffprobe for metadata, frames, audio, scenes, and previews |
 | Search DB | **pgvector** (HNSW-style indexing in migrations) + Python fallback |
 | Metrics | Prometheus client counters/histograms on API hot paths |
 | Tracing | Optional OpenTelemetry hooks when enabled |
-| IaC / ops | Terraform modules and docs for VPC, private SQL, Redis, Pub/Sub, Cloud Run |
+| Packaging / ops | Docker Compose locally; optional Vercel frontend and Terraform/GCP deployment |
 
 ---
 
@@ -212,18 +206,19 @@ The LLM stage consumes **visual frames**, **scene boundaries**, and **transcript
 
 | Env var | Default | Purpose |
 |---------|---------|---------|
-| `LLM_PROVIDER` | `mock` | `mock` or `openai` for tag generation |
-| `EMBEDDING_PROVIDER` | `mock` | `mock` or `openai`; shared by worker and semantic search |
-| `TRANSCRIPTION_PROVIDER` | `mock` | `mock` or `openai` (Whisper) |
-| `OPENAI_API_KEY` | _unset_ | Required when any provider is `openai` |
-| `OPENAI_LLM_MODEL` | `gpt-4o-mini` | Tag generation model |
-| `OPENAI_EMBEDDING_MODEL` | `text-embedding-3-small` | Embedding model |
-| `OPENAI_TRANSCRIPTION_MODEL` | `whisper-1` | STT model |
+| `LLM_PROVIDER` | Compose: `ollama` | Local structured tag generation; `mock` is the lightweight fallback |
+| `EMBEDDING_PROVIDER` | Compose: `ollama` | Shared local embeddings for workers and semantic search |
+| `TRANSCRIPTION_PROVIDER` | Compose: `faster_whisper` | Offline speech-to-text |
+| `OLLAMA_BASE_URL` | `http://ollama:11434` | Local Ollama server |
+| `OLLAMA_LLM_MODEL` | `qwen2:1.5b` | Permissively licensed, low-memory tag model |
+| `OLLAMA_EMBEDDING_MODEL` | `all-minilm` | Lightweight 384-dimensional embeddings |
+| `OLLAMA_VISION_MODEL` | `granite3.2-vision:2b` | Apache-licensed descriptions of sampled frames |
+| `FASTER_WHISPER_MODEL` | `small` | Offline Whisper model; use `base` on lower-memory machines |
 | `PROVIDER_STRICT` | `false` | If `true`, provider failures fail the job instead of controlled fallback |
 | `MEDIA_STRICT` | `false` | If `true`, ffmpeg/ffprobe failures fail stages instead of placeholders |
 | `SCENE_DETECTION_THRESHOLD` | `0.35` | Scene detection sensitivity |
 
-With `PROVIDER_STRICT=false`, outages can fall back to deterministic mock behavior while still marking jobs **partially completed** so operators see what degraded. With `PROVIDER_STRICT=true`, failures propagate for alerting-driven workflows.
+With `PROVIDER_STRICT=false`, missing local models can fall back to deterministic mock behavior. With `PROVIDER_STRICT=true`, inference failures stop the job. Paid OpenAI support remains an optional extra and is not installed or configured by the local stack.
 
 **Search and embeddings must stay consistent:** changing `EMBEDDING_PROVIDER` or model mid-catalog can change vector dimensionality. The API skips dimension mismatches rather than silently corrupting scores; plan **re-embedding** or migrations when switching models.
 
@@ -278,7 +273,13 @@ The pipeline intentionally lands assets in **`review_ready`**; publishing is a *
 
 ---
 
-## 13. Infrastructure on GCP
+## 13. Infrastructure options
+
+### Local open-source default
+
+Docker Compose runs PostgreSQL/pgvector, Valkey, Ollama, FastAPI, the Celery worker, and Next.js. Originals and derived media share a persistent local volume, while model caches persist across restarts. No cloud account or API key is required. See [`docs/open-source-local-stack.md`](docs/open-source-local-stack.md).
+
+### Optional GCP production path
 
 Terraform and docs cover a **stronger** production layout than “everything on the default VPC”:
 
@@ -305,13 +306,10 @@ Optional **OpenTelemetry** instrumentation for FastAPI and SQLAlchemy can be ena
 
 ```bash
 cp .env.example .env
-make up                     # postgres + redis + minio + api + worker via docker-compose
+make up                     # pgvector + Valkey + Ollama + API + worker + frontend
+make models                 # pull Qwen2, all-minilm, and Granite Vision into Ollama
+make migrate                # create/update the PostgreSQL schema
 make seed                   # optional: demo data
-
-# Frontend
-cd frontend
-npm install
-NEXT_PUBLIC_API_BASE_URL=http://localhost:8000 npm run dev
 ```
 
 - API docs: `http://localhost:8000/docs`
@@ -331,7 +329,21 @@ Database schema migrations use **Alembic**; see `backend/alembic/` and scripts r
 
 ---
 
-## 16. GCP deployment
+## 16. Deployment options
+
+### Zero-bill local deployment (default)
+
+Run the complete stack on hardware you already own using Docker Compose and the instructions in [`docs/open-source-local-stack.md`](docs/open-source-local-stack.md). This path uses no metered AI API and requires no Vercel or GCP account. Hardware, power, bandwidth, and public hosting are not inherently free.
+
+### Optional Vercel frontend
+
+The recommended web deployment imports this repository into Vercel with **`frontend` as the Root Directory**. Set `NEXT_PUBLIC_API_BASE_URL` to the public HTTPS origin of the FastAPI service; Vercel then builds the Next.js app with `npm ci` and `npm run build` and creates Git-based preview deployments.
+
+The backend supports `CORS_ALLOWED_ORIGIN_REGEX` for project-scoped Vercel preview URLs. GCS must separately allow browser `PUT` requests from the production and preview frontend origins. Do not store credentials in `NEXT_PUBLIC_*` variables because those values are shipped to the browser.
+
+See [`docs/deploy-vercel.md`](docs/deploy-vercel.md) for the project settings, environment variables, CORS pattern, topology, and smoke-test checklist.
+
+### Optional GCP API, worker, and data tier
 
 ### Production readiness (summary)
 
@@ -388,10 +400,12 @@ gcloud run services logs read cinetag-worker --region us-central1 --limit 100
 Beyond the tables above, important settings include:
 
 - `QUEUE_BACKEND`, `REDIS_URL`, broker/result URLs for Celery modes
+- `OLLAMA_BASE_URL`, `OLLAMA_LLM_MODEL`, `OLLAMA_EMBEDDING_MODEL`, `OLLAMA_VISION_MODEL`
+- `FASTER_WHISPER_MODEL`, `FASTER_WHISPER_DEVICE`, `FASTER_WHISPER_COMPUTE_TYPE`
 - `PUBSUB_TOPIC_NAME`, `PUBSUB_SUBSCRIPTION_NAME` for Pub/Sub mode
 - `STORAGE_BACKEND`, `GCS_BUCKET_NAME`, upload size limits
 - `SEMANTIC_SEARCH_BACKEND`, `PGVECTOR_ENABLED`, embedding dimension settings aligned with migrations
-- `CORS_ALLOWED_ORIGINS` for browser access to the API
+- `CORS_ALLOWED_ORIGINS` and optional `CORS_ALLOWED_ORIGIN_REGEX` for browser access to the API
 - `SECRET_MANAGER_ENABLED`, Cloud SQL connection env vars for GCP
 
 Authoritative defaults and types live in `backend/app/core/config.py`.
@@ -402,6 +416,8 @@ Authoritative defaults and types live in `backend/app/core/config.py`.
 
 | Document | Contents |
 |----------|----------|
+| [`docs/open-source-local-stack.md`](docs/open-source-local-stack.md) | Zero-bill local stack, models, hardware profiles, setup, and licensing notes |
+| [`docs/deploy-vercel.md`](docs/deploy-vercel.md) | Vercel frontend + GCP backend topology, project settings, environment variables, CORS, verification |
 | [`docs/deploy-gcp-cloud-run.md`](docs/deploy-gcp-cloud-run.md) | Terraform, Cloud Run, migration order, rollback |
 | [`docs/cicd-github-actions-gcp.md`](docs/cicd-github-actions-gcp.md) | Step-by-step GitHub Actions → GCP CI/CD setup (Workload Identity Federation) |
 | [`docs/ai-video-capabilities-and-processing-flow.md`](docs/ai-video-capabilities-and-processing-flow.md) | Deep dive on AI stages, upload, storage, APIs |
@@ -426,7 +442,8 @@ CineTag is a **focused** reference, not a full commercial MAM or streaming stack
 
 - **Playback:** no first-class adaptive streaming or studio DRM in this repo; the value is metadata and control-plane patterns.
 - **Vector dimension:** DB column width may be fixed by migration; mixed mock/production dimensions need an operational strategy.
-- **Kubernetes / Temporal:** not required for the included design; Cloud Run + Celery/Pub/Sub is the happy path here.
+- **Hardware:** local inference is limited by available RAM, VRAM, CPU/GPU speed, disk, and power.
+- **Kubernetes / Temporal:** not required for the included design; Docker Compose + Celery/Valkey is the default path.
 - **Vertex AI / Video Intelligence API:** reasonable production upgrades, documented as directions rather than the default code path in many environments.
 - **Terraform:** greenfield `apply` is smooth; existing GCP projects may hit **already exists** conflicts until state/imports are reconciled.
 
@@ -454,7 +471,7 @@ frontend/docs/screenshots/
 
 ## 21. Resume bullet
 
-> Built **CineTag**, a cloud-native video intelligence platform on GCP that ingests video via signed-object uploads, processes assets through staged workers (Celery or Pub/Sub), generates LLM-assisted metadata and embeddings with human review and publish gates, and powers semantic discovery using Postgres/pgvector and a Next.js operator UI — implemented with FastAPI, Cloud Run, Cloud SQL, Redis, GCS, and Terraform-oriented networking.
+> Built **CineTag**, a local-first video intelligence platform using Next.js, FastAPI, PostgreSQL/pgvector, Celery/Valkey, FFmpeg, Ollama with Qwen2 and Granite Vision, and faster-whisper; it processes uploaded video into visual descriptions, transcripts, structured tags, embeddings, review workflows, and semantic discovery without requiring paid AI APIs.
 
 ---
 

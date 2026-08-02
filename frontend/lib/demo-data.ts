@@ -515,51 +515,51 @@ export const DEMO_METRICS: PlatformMetric[] = [
 ];
 
 export const PIPELINE_STAGES: { key: ProcessingStage | 'queued'; label: string; description: string }[] = [
-  { key: 'queued', label: 'Upload', description: 'Direct-to-GCS signed PUT' },
+  { key: 'queued', label: 'Upload', description: 'Direct-to-storage upload' },
   { key: 'metadata_extraction', label: 'Metadata', description: 'ffprobe streams + container' },
   { key: 'frame_sampling', label: 'Frames', description: 'Periodic + scene-aware sampling' },
-  { key: 'scene_segmentation', label: 'Scenes', description: 'Histogram + transformer scenes' },
-  { key: 'transcription', label: 'Transcript', description: 'Speech-to-text + diarization' },
-  { key: 'llm_tagging', label: 'LLM Tags', description: 'Genres, moods, themes, entities' },
-  { key: 'embedding', label: 'Embeddings', description: 'Multi-modal + tag embeddings' },
+  { key: 'scene_segmentation', label: 'Scenes', description: 'FFmpeg scene-change detection' },
+  { key: 'transcription', label: 'Transcript', description: 'Local faster-whisper speech-to-text' },
+  { key: 'llm_tagging', label: 'LLM Tags', description: 'Local Ollama structured tagging' },
+  { key: 'embedding', label: 'Embeddings', description: 'Local semantic text embeddings' },
   { key: 'review_ready', label: 'Review', description: 'Human-in-the-loop QA' },
   { key: 'completed', label: 'Discover', description: 'Search & recommendations' },
 ];
 
 export const ARCHITECTURE_CARDS = [
   {
-    name: 'Cloud Run · API',
-    role: 'FastAPI gateway, signed URLs, control plane',
+    name: 'FastAPI · API',
+    role: 'Upload orchestration and catalog control plane',
     accent: 'sky' as const,
   },
   {
-    name: 'Cloud Run · Worker',
-    role: 'Celery pipeline runner, autoscaled by load',
+    name: 'Celery · Worker',
+    role: 'Retryable FFmpeg and ML pipeline runner',
     accent: 'red' as const,
   },
   {
-    name: 'Cloud SQL · Postgres',
+    name: 'PostgreSQL · pgvector',
     role: 'Assets, jobs, tags, embeddings, audit logs',
     accent: 'violet' as const,
   },
   {
-    name: 'Memorystore · Redis',
+    name: 'Valkey · Queue',
     role: 'Celery broker, result backend, cache',
     accent: 'rose' as const,
   },
   {
-    name: 'Google Cloud Storage',
+    name: 'Local object storage',
     role: 'Originals, frames, transcripts, thumbnails',
     accent: 'emerald' as const,
   },
   {
-    name: 'LLM Tagging Service',
-    role: 'Genres, moods, entities, moderation review',
+    name: 'Ollama · Qwen2',
+    role: 'Local summaries, tags, and embeddings',
     accent: 'amber' as const,
   },
   {
-    name: 'Cloud Monitoring',
-    role: 'Metrics, traces, latency SLOs, alerts',
+    name: 'faster-whisper',
+    role: 'Offline speech-to-text on CPU or GPU',
     accent: 'sky' as const,
   },
 ];

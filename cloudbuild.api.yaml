@@ -3,6 +3,8 @@ steps:
     args:
       - build
       - --no-cache
+      - --build-arg
+      - BACKEND_EXTRAS=gcp,openai
       - -t
       - us-central1-docker.pkg.dev/cinetag-distributed-video/cinetag-containers/cinetag-api:latest
       - ./backend

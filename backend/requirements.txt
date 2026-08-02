@@ -1,5 +1,2 @@
-google-cloud-storage
-google-cloud-pubsub
-google-auth
-google-auth-httplib2
-pgvector
+# Local-first installation. GCP and OpenAI integrations are optional extras in pyproject.toml.
+-e .[local-ml]

@@ -4,9 +4,20 @@ import { API_BASE_URL } from '@/lib/api';
 import PreviewSettingsPanel from '@/components/PreviewSettingsPanel';
 
 export default function FooterDebug() {
-  const env = process.env.NEXT_PUBLIC_APP_ENV || process.env.NODE_ENV || 'dev';
-  const build = process.env.NEXT_PUBLIC_BUILD_VERSION || 'dev';
-  const region = process.env.NEXT_PUBLIC_GCP_REGION || 'us-central1';
+  const env =
+    process.env.NEXT_PUBLIC_APP_ENV ||
+    process.env.NEXT_PUBLIC_VERCEL_ENV ||
+    process.env.NODE_ENV ||
+    'dev';
+  const build =
+    process.env.NEXT_PUBLIC_BUILD_VERSION ||
+    process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ||
+    'dev';
+  const platform =
+    process.env.NEXT_PUBLIC_DEPLOY_PLATFORM ||
+    (process.env.NEXT_PUBLIC_VERCEL_ENV ? 'Vercel' : 'Local');
+  const region =
+    process.env.NEXT_PUBLIC_DEPLOY_REGION || process.env.NEXT_PUBLIC_GCP_REGION || 'local';
   const apiLabel = API_BASE_URL || 'unset';
   return (
     <footer className="mt-16 border-t border-cinetag-border/70 bg-cinetag-ink/60">
@@ -32,7 +43,7 @@ export default function FooterDebug() {
             <span className="text-white/30">|</span>
             <span><span className="text-white/40">build</span> {build}</span>
             <span className="text-white/30">|</span>
-            <span><span className="text-white/40">deploy</span> GCP · {region}</span>
+            <span><span className="text-white/40">deploy</span> {platform} · {region}</span>
           </div>
         </div>
       </div>

@@ -14,7 +14,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml /app/
 COPY app /app/app
 COPY scripts /app/scripts
-RUN pip install --no-cache-dir -e .
+COPY alembic.ini /app/alembic.ini
+COPY alembic /app/backend/alembic
+ARG BACKEND_EXTRAS=local-ml
+RUN pip install --no-cache-dir -e ".[${BACKEND_EXTRAS}]"
 
 RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser

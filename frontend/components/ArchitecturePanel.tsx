@@ -15,13 +15,13 @@ export default function ArchitecturePanel() {
       <div className="mb-3 flex items-end justify-between">
         <div>
           <div className="text-[11px] uppercase tracking-wider text-white/50">Engineering credibility</div>
-          <h2 className="mt-1 text-xl font-bold tracking-tight">Cloud-native architecture</h2>
+          <h2 className="mt-1 text-xl font-bold tracking-tight">Local-first architecture</h2>
           <p className="mt-1 max-w-2xl text-sm text-white/55">
-            Designed for streaming-platform scale: stateless services, autoscaling workers,
-            managed datastores, and built-in observability across the pipeline.
+            Runs on one machine with replaceable services, asynchronous workers, persistent
+            storage, and built-in observability across the pipeline.
           </p>
         </div>
-        <span className="hidden md:inline-flex chip-neutral !text-[10.5px]">Google Cloud Platform</span>
+        <span className="hidden md:inline-flex chip-neutral !text-[10.5px]">Open-source local stack</span>
       </div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         {ARCHITECTURE_CARDS.map((c) => {

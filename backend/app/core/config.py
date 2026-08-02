@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     gcp_project_id: str = "cinetag-distributed-video"
     gcp_region: str = "us-central1"
 
-    storage_backend: Literal["minio", "gcs"] = "minio"
+    storage_backend: Literal["local", "minio", "gcs"] = "local"
     gcs_bucket_name: str | None = None
     local_storage_dir: str = "/tmp/cinetag-store"
 
@@ -60,6 +60,16 @@ class Settings(BaseSettings):
     openai_llm_model: str = "gpt-4o-mini"
     openai_embedding_model: str = "text-embedding-3-small"
     openai_transcription_model: str = "whisper-1"
+    ollama_base_url: str = "http://ollama:11434"
+    ollama_llm_model: str = "qwen2:1.5b"
+    ollama_embedding_model: str = "all-minilm"
+    vision_provider: str = "mock"
+    ollama_vision_model: str = "granite3.2-vision:2b"
+    ollama_timeout_seconds: float = 180.0
+    faster_whisper_model: str = "small"
+    faster_whisper_device: str = "cpu"
+    faster_whisper_compute_type: str = "int8"
+    faster_whisper_language: str | None = None
     scene_detection_threshold: float = 0.35
 
     provider_strict: bool = False
@@ -75,6 +85,7 @@ class Settings(BaseSettings):
     otel_service_name: str = Field(default="cinetag-api", validation_alias="OTEL_SERVICE_NAME")
 
     cors_allowed_origins: str = "http://localhost:5173,http://localhost:3000"
+    cors_allowed_origin_regex: str | None = None
     max_upload_size_mb: int = 512
 
     auth_enabled: bool = Field(default=False, validation_alias="AUTH_ENABLED")

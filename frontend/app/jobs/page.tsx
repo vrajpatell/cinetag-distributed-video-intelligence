@@ -187,14 +187,14 @@ export default function JobsPage() {
       <section className="mx-auto max-w-[1400px] space-y-3 px-0">
         <PipelineFlow />
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-          <Note title="Worker autoscaling">
-            Workers consume from a Redis-backed queue. Cloud Run scales replicas on queue depth and CPU.
+          <Note title="Worker isolation">
+            Workers consume from a Valkey-backed queue and run independently from the API.
           </Note>
           <Note title="Stage-level retries">
             Each stage is independently retryable; failed stages mark the job partially_completed.
           </Note>
           <Note title="Observability">
-            Stage durations and counters are exported to Prometheus and Cloud Monitoring.
+            Stage durations and counters are exported as Prometheus metrics.
           </Note>
         </div>
       </section>

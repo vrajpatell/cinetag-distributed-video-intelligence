@@ -49,7 +49,7 @@ export class UploadError extends Error {
   }
 }
 
-export async function uploadVideoDirectToGcs(
+export async function uploadVideoDirect(
   options: UploadOptions
 ): Promise<UploadResult> {
   const { file, title, onStageChange, onProgress, signal } = options;
@@ -160,7 +160,7 @@ function putToSignedUrl(params: {
         resolve();
       } else {
         reject(
-          new UploadError(`Cloud Storage rejected upload (${xhr.status})`, {
+          new UploadError(`Object storage rejected upload (${xhr.status})`, {
             stage: 'uploading_to_cloud_storage',
             status: xhr.status,
             endpoint: url,
@@ -171,10 +171,10 @@ function putToSignedUrl(params: {
     };
     xhr.onerror = () =>
       reject(
-        new UploadError('Could not upload video to Cloud Storage', {
+        new UploadError('Could not upload video to object storage', {
           stage: 'uploading_to_cloud_storage',
           endpoint: url,
-          hint: 'Check CORS configuration on your GCS bucket.',
+          hint: 'Check the local upload route or object-storage CORS configuration.',
         })
       );
     xhr.ontimeout = () =>
@@ -207,7 +207,7 @@ function putToSignedUrl(params: {
 
 export const STAGE_LABELS: Record<UploadStage, string> = {
   preparing_signed_upload: 'Preparing signed upload',
-  uploading_to_cloud_storage: 'Uploading to Cloud Storage',
+  uploading_to_cloud_storage: 'Uploading to object storage',
   finalizing_upload: 'Finalizing upload',
   creating_processing_job: 'Creating processing job',
   queued_for_analysis: 'Queued for analysis',

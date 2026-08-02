@@ -9,7 +9,7 @@
  * - We do NOT pre-fetch the playback URL or any video bytes on initial render.
  *   The component shows a poster (a sampled frame from the pipeline) plus a
  *   play affordance. Bytes are only requested when the user opts in.
- * - On the first play click we ask the API for a short-lived signed GCS URL
+ * - On the first play click we ask the API for a storage-backed playback URL
  *   (or, in local dev, a Range-aware streaming URL on the API). The browser's
  *   native <video> element then handles seek/buffer via HTTP Range requests
  *   directly against object storage — no Cloud Run egress in production.

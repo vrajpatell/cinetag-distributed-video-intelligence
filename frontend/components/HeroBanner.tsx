@@ -57,7 +57,7 @@ export default function HeroBanner({ featured }: { featured?: VideoSummary | nul
           </div>
           <ul className="mt-9 grid grid-cols-3 gap-4 text-[12px] text-white/60">
             {[
-              { label: 'Ingestion', sub: 'Direct-to-GCS' },
+              { label: 'Ingestion', sub: 'Direct-to-storage' },
               { label: 'AI Tagging', sub: 'LLM + multimodal' },
               { label: 'Discovery', sub: 'Semantic search' },
             ].map((p) => (
