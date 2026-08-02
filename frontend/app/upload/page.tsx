@@ -7,6 +7,7 @@ import UploadDropzone from '@/components/UploadDropzone';
 import UploadProgress from '@/components/UploadProgress';
 import ErrorToast, { type ErrorDetail } from '@/components/ErrorToast';
 import PipelineFlow from '@/components/PipelineFlow';
+import { DEMO_MODE } from '@/lib/api';
 import {
   uploadVideoDirect,
   UploadError,
@@ -99,15 +100,24 @@ export default function UploadPage() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr,360px]">
         <div className="space-y-5">
+          {DEMO_MODE ? (
+            <div className="rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+              <div className="font-semibold">Uploads are disabled in the Vercel showcase.</div>
+              <p className="mt-1 text-amber-100/75">
+                Run the free Docker Compose stack locally to process videos with Ollama,
+                faster-whisper, FFmpeg, Valkey, and PostgreSQL.
+              </p>
+            </div>
+          ) : null}
           <div className="panel-strong p-5">
-            <UploadDropzone file={file} onFile={setFile} disabled={busy} maxSizeMb={5_000} />
+            <UploadDropzone file={file} onFile={setFile} disabled={busy || DEMO_MODE} maxSizeMb={5_000} />
             <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
               <label className="block">
                 <div className="mb-1 text-[11px] uppercase tracking-wider text-white/55">Title (optional)</div>
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  disabled={busy}
+                  disabled={busy || DEMO_MODE}
                   placeholder="e.g. Urban Chase Sequence"
                   className="w-full rounded-md border border-cinetag-border bg-cinetag-panelMuted/80 px-3 py-2 text-sm outline-none focus:border-cinetag-red/60"
                 />
@@ -121,7 +131,7 @@ export default function UploadPage() {
               </div>
             </div>
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <button onClick={start} disabled={!file || busy} className="btn-primary">
+              <button onClick={start} disabled={!file || busy || DEMO_MODE} className="btn-primary">
                 {busy ? 'Uploading…' : 'Start upload'}
               </button>
               {busy ? (

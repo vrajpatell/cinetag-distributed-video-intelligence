@@ -2,7 +2,7 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { searchVideos } from '@/lib/api';
+import { DEMO_MODE, searchVideos } from '@/lib/api';
 import { DEMO_SEARCH_RESULTS } from '@/lib/demo-data';
 import type { SearchResult } from '@/lib/types';
 
@@ -15,6 +15,9 @@ export type SearchMutationResult = {
 export function useSemanticSearch() {
   return useMutation({
     mutationFn: async (query: string): Promise<SearchMutationResult> => {
+      if (DEMO_MODE) {
+        return { results: DEMO_SEARCH_RESULTS, usedDemo: true, error: null };
+      }
       try {
         const r = await searchVideos({ query });
         if (Array.isArray(r) && r.length > 0) {

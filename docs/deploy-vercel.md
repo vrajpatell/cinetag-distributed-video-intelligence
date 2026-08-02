@@ -1,4 +1,26 @@
-# Deploying the CineTag frontend on Vercel
+# Deploying CineTag on Vercel
+
+## Free showcase mode (the checked-in default)
+
+The production Vercel project runs the Next.js frontend with bundled demo catalog,
+job, review, and semantic-search data. It needs no database, queue, model API, API
+key, or paid integration. The committed `frontend/.env.production` supplies
+these non-secret build variables deterministically to Next.js:
+
+| Variable | Value |
+|----------|-------|
+| `NEXT_PUBLIC_DEMO_MODE` | `true` |
+| `NEXT_PUBLIC_APP_ENV` | `showcase` |
+| `NEXT_PUBLIC_DEPLOY_PLATFORM` | `Vercel` |
+| `NEXT_PUBLIC_DEPLOY_REGION` | `global` |
+
+Uploads and inference are deliberately disabled in this mode. Vercel Functions
+are request-driven and are not a host for CineTag's persistent Ollama model server,
+Celery worker, Valkey broker, FFmpeg workspace, and shared media volume. Run the
+Docker Compose topology in `open-source-local-stack.md` for the complete zero-API-cost
+video intelligence pipeline.
+
+The remainder of this document describes the optional full-stack cloud connection.
 
 CineTag uses a hybrid deployment: the Next.js web application runs on Vercel, while the FastAPI control plane and ffmpeg/Celery video workers remain on Cloud Run. PostgreSQL, Redis/Pub/Sub, and GCS remain the durable data and processing tier.
 
@@ -45,12 +67,13 @@ Create a Vercel project from this GitHub repository and set:
 
 The checked-in [`frontend/vercel.json`](../frontend/vercel.json) pins the framework and deterministic install/build commands. Git integration will create preview deployments for branches and a production deployment from the configured production branch.
 
-## 3. Configure Vercel environment variables
+## 3. Configure Vercel environment variables for a remote backend
 
 Add these in Project Settings -> Environment Variables:
 
 | Variable | Required | Scope | Example |
 |----------|----------|-------|---------|
+| `NEXT_PUBLIC_DEMO_MODE` | yes | Production, Preview, Development | `false` |
 | `NEXT_PUBLIC_API_BASE_URL` | yes | Production, Preview, Development | `https://cinetag-api-abc123-uc.a.run.app` |
 | `NEXT_PUBLIC_APP_ENV` | recommended | all | `production` or `preview` |
 | `NEXT_PUBLIC_DEPLOY_PLATFORM` | optional | all | `Vercel` |

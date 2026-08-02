@@ -10,6 +10,7 @@ import type {
 
 const RAW_API = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? '';
 export const API_BASE_URL: string = RAW_API.replace(/\/+$/, '');
+export const DEMO_MODE = process.env.NEXT_PUBLIC_DEMO_MODE === 'true';
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 const IS_BROWSER = typeof window !== 'undefined';
@@ -24,7 +25,7 @@ function warnNoApiBase(context: string) {
   );
 }
 
-if (IS_BROWSER && IS_PROD && !API_BASE_URL) {
+if (IS_BROWSER && IS_PROD && !API_BASE_URL && !DEMO_MODE) {
   // Spec: "Throw clear error if missing in production."
   // We throw on the client at module load so misconfiguration is loud and
   // fails fast — before any user data is sent over a relative URL that
@@ -348,6 +349,9 @@ export interface HealthSnapshot {
   env?: string;
 }
 export async function getHealthSnapshot(): Promise<HealthSnapshot> {
+  if (DEMO_MODE) {
+    return { api: 'ok', ready: 'ok', env: 'showcase' };
+  }
   const out: HealthSnapshot = { api: 'unknown', ready: 'unknown' };
   try {
     const h = await apiFetch<{ status: string; env?: string }>('/health');
