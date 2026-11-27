@@ -340,6 +340,7 @@ export interface HealthSnapshot {
 }
 export async function getHealthSnapshot(): Promise<HealthSnapshot> {
   const out: HealthSnapshot = { api: 'unknown', ready: 'unknown' };
+  if (!API_BASE_URL && IS_PROD) return out;
   try {
     const h = await apiFetch<{ status: string; env?: string }>('/health');
     out.api = h?.status === 'ok' ? 'ok' : 'unknown';
