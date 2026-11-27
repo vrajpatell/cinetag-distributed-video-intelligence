@@ -44,7 +44,7 @@ export default function HeroBanner({ featured }: { featured?: VideoSummary | nul
               Search Content
             </Link>
             <a
-              href={(process.env.NEXT_PUBLIC_API_BASE_URL || '').replace(/\/+$/, '') + '/docs' || '/docs'}
+              href="/docs"
               target="_blank"
               rel="noreferrer noopener"
               className="btn-ghost"
