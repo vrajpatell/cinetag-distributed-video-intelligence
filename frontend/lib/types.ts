@@ -137,6 +137,18 @@ export interface SearchResult {
   isDemo?: boolean;
 }
 
+export interface VideoTranscript {
+  text: string;
+  language: string | null;
+}
+
+export interface VideoScene {
+  id: number;
+  start_time_seconds: number;
+  end_time_seconds: number;
+  summary: string | null;
+}
+
 export interface VideoPlaybackResponse {
   url: string;
   content_type: string;

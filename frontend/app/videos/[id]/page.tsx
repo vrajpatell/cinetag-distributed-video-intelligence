@@ -6,7 +6,8 @@ import PublishVideoButton from '@/components/PublishVideoButton';
 import RecommendationRail from '@/components/RecommendationRail';
 import VideoPlayer from '@/components/VideoPlayer';
 import VideoDetailHero from '@/components/VideoDetailHero';
-import { safeFetch } from '@/lib/api';
+import SceneList from '@/components/SceneList';
+import { getVideoScenes, getVideoTranscript, safeFetch } from '@/lib/api';
 import { DEMO_JOBS, DEMO_VIDEOS, findDemoVideo } from '@/lib/demo-data';
 import { formatBitsPerSecond, formatBytes, formatDuration, formatRelativeTime } from '@/lib/format';
 import type { JobSummary, VideoSummary } from '@/lib/types';
@@ -27,7 +28,12 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
   const tags = video.tags && video.tags.length ? video.tags : findDemoVideo(id)?.tags || [];
 
   // Pull jobs related to this video, fall back to demo.
-  const jobs = await safeFetch<JobSummary[]>('/api/jobs', []);
+  const [jobs, transcriptResult, scenesResult] = await Promise.all([
+    safeFetch<JobSummary[]>('/api/jobs', []),
+    isDemo ? null : getVideoTranscript(video.id).catch(() => undefined),
+    isDemo ? [] : getVideoScenes(video.id).catch(() => undefined),
+  ]);
+  const scenes = scenesResult?.sort((a, b) => a.start_time_seconds - b.start_time_seconds || a.id - b.id);
   const relatedJobs = (Array.isArray(jobs) ? jobs : [])
     .filter((j) => String(j.video_id) === String(id))
     .concat(isDemo ? DEMO_JOBS.filter((j) => String(j.video_id) === String(id)) : []);
@@ -65,6 +71,8 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
         {playbackEnabled ? (
           <div className="space-y-4 p-4 md:p-5">
             <VideoPlayer
+              key={video.id}
+              scenes={scenes}
               videoId={video.id}
               title={video.title || `Video #${id}`}
               posterUrl={video.poster_url}
@@ -123,26 +131,25 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
             </div>
           </div>
 
-          <div className="panel-strong p-5">
-            <div className="text-[11px] uppercase tracking-wider text-white/50">Transcript &amp; scenes</div>
-            <p className="mt-2 text-[12.5px] text-white/65">
-              Transcript and scene-segmentation outputs will appear here when the pipeline completes.
-            </p>
-            <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-              <div className="panel-muted p-3">
-                <div className="text-[11px] text-white/55">Transcript snippet</div>
-                <p className="mt-1 italic text-[12.5px] text-white/75">
-                  &ldquo;{(tags[0]?.value || 'audio').toString()} &mdash; let me show you what comes next…&rdquo;
-                </p>
+          {!isDemo && (
+            <section className="panel-strong space-y-4 p-5">
+              <div>
+                <h2 className="text-sm font-semibold">Transcript</h2>
+                {transcriptResult?.text.trim() ? (
+                  <div className="mt-2 max-h-72 overflow-y-auto">
+                    <p lang={transcriptResult.language || undefined} className="whitespace-pre-wrap break-words text-sm leading-relaxed text-white/80">
+                      {transcriptResult.text}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="mt-2 text-sm text-white/65">
+                    {transcriptResult === undefined ? 'Could not load the transcript.' : 'No transcript available for this video.'}
+                  </p>
+                )}
               </div>
-              <div className="panel-muted p-3">
-                <div className="text-[11px] text-white/55">Detected scene</div>
-                <p className="mt-1 text-[12.5px] text-white/75">
-                  Scene change at 00:42 — wide establishing shot transitions to handheld close-up.
-                </p>
-              </div>
-            </div>
-          </div>
+              {!playbackEnabled && <SceneList scenes={scenes} />}
+            </section>
+          )}
 
           {relatedJobs.length ? (
             <div className="space-y-3">
