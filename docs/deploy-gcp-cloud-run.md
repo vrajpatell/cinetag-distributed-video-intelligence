@@ -94,7 +94,7 @@ Terraform wires most values on Cloud Run. Prefer **Cloud SQL Auth Proxy socket**
 - `DATABASE_PASSWORD` (Secret Manager secret `DATABASE_PASSWORD`, also injected as env from secret ref)
 - `SECRET_MANAGER_ENABLED=true` (API/worker/migrate job load additional secrets such as `OPENAI_API_KEY` when not set inline)
 - `AUTH_ENABLED=true` with `ADMIN_API_KEY`, `REVIEWER_API_KEY` (API) and `SERVICE_API_KEY` (worker automation / retry from trusted callers)
-- Clients send `X-API-Key`. For the Next.js app, set `NEXT_PUBLIC_API_KEY` (or role-specific vars) only in trusted demos — prefer server-side callers for production.
+- Trusted API clients send `X-API-Key` over HTTPS. Keep operator keys in a secret store. The public frontend can display sample content without backend credentials.
 - `QUEUE_BACKEND` (`celery` or `pubsub`)
 - Redis URL for Celery (`REDIS_URL` from Memorystore)
 - `STORAGE_BACKEND=gcs`, `GCS_BUCKET_NAME`

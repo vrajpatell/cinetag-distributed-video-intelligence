@@ -79,11 +79,7 @@ export default async function Home() {
       {usingDemo ? (
         <div className="mx-auto max-w-[1400px] px-5">
           <div className="rounded-md border border-cinetag-border/70 bg-cinetag-panelMuted/60 px-3 py-2 text-[12px] text-white/60">
-            Showing demo content because no videos have been ingested yet.{' '}
-            <a href="/upload" className="text-cinetag-redGlow hover:underline">
-              Upload your first asset
-            </a>{' '}
-            to populate the rails with real data.
+            Exploring CineTag with sample videos. Live catalog data requires access to a connected backend.
           </div>
         </div>
       ) : null}

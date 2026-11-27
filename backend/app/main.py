@@ -5,6 +5,7 @@ from contextvars import ContextVar
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.bootstrap import ensure_preload
@@ -24,6 +25,8 @@ from app.api import (  # noqa: E402
     routes_upload,
     routes_videos,
 )
+from app.core.auth import roles_for_api_key  # noqa: E402
+from app.observability.metrics import auth_failures_total  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.db.session import get_engine  # noqa: E402
 from app.observability.metrics import api_request_duration_seconds, api_request_total  # noqa: E402
@@ -62,7 +65,23 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class ApiAccessMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        public_probe = request.method in {"GET", "HEAD"} and request.url.path in {"/health", "/ready"}
+        protected = settings.authentication_required and not public_probe
+        if protected and not roles_for_api_key(request.headers.get("X-API-Key")):
+            auth_failures_total.inc()
+            response = JSONResponse({"detail": "Unauthorized"}, status_code=401)
+        else:
+            response = await call_next(request)
+        if protected:
+            response.headers["Cache-Control"] = "private, no-store"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
+
+
 app = FastAPI(title=settings.app_name)
+app.add_middleware(ApiAccessMiddleware)
 app.add_middleware(RequestIdMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -78,7 +97,7 @@ def _route_metric_label(request: Request) -> str:
     r = request.scope.get("route")
     if r is not None and getattr(r, "path", None):
         return str(r.path)
-    return request.url.path.split("?")[0] or "unknown"
+    return "unmatched"
 
 
 @app.middleware("http")
