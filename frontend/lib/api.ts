@@ -5,7 +5,9 @@ import type {
   SearchResult,
   VideoPlaybackResponse,
   VideoPreviewResponse,
+  VideoScene,
   VideoSummary,
+  VideoTranscript,
 } from './types';
 
 const RAW_API = process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.API_BASE_URL ?? '';
@@ -180,7 +182,11 @@ export async function getVideoTags(id: string | number) {
 }
 
 export async function getVideoTranscript(id: string | number) {
-  return apiFetch<unknown>(`/api/videos/${id}/transcript`);
+  return apiFetch<VideoTranscript | null>(`/api/videos/${id}/transcript`);
+}
+
+export async function getVideoScenes(id: string | number) {
+  return apiFetch<VideoScene[]>(`/api/videos/${id}/scenes`);
 }
 
 export async function getVideoPlayback(
