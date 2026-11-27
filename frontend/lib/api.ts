@@ -71,7 +71,7 @@ function authHeaders(): Record<string, string> {
   return { 'X-API-Key': RAW_API_KEY };
 }
 
-export async function apiFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+async function request(path: string, init?: RequestInit): Promise<Response> {
   const url = buildUrl(path);
   let res: Response;
   try {
@@ -91,25 +91,32 @@ export async function apiFetch<T = unknown>(path: string, init?: RequestInit): P
         : 'Network request failed';
     throw new ApiError(message, { endpoint: url });
   }
-  let body: unknown;
-  const text = await res.text();
-  try {
-    body = text ? JSON.parse(text) : null;
-  } catch {
-    body = text;
-  }
   if (!res.ok) {
-    const detail =
-      (body as { detail?: string } | null)?.detail ||
-      (typeof body === 'string' ? body : '') ||
-      res.statusText;
-    throw new ApiError(`Request failed (${res.status}) ${detail || ''}`.trim(), {
-      status: res.status,
-      endpoint: url,
-      detail,
-    });
+    const text = await res.text();
+    let detail = text || res.statusText;
+    try {
+      const error = JSON.parse(text);
+      if (typeof error.detail === 'string') detail = error.detail;
+      else if (Array.isArray(error.detail)) detail = error.detail.map((item: {msg?: string}) => item.msg).filter(Boolean).join(', ');
+    } catch {
+      // Some upstream services send plain-text errors.
+    }
+    throw new ApiError(`Request failed (${res.status}) ${detail}`.trim(), { status: res.status, endpoint: url, detail });
   }
-  return body as T;
+  return res;
+}
+
+export async function apiFetchBlob(path: string, init?: RequestInit): Promise<Blob> {
+  return (await request(path, init)).blob();
+}
+
+export async function apiFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+  const text = await (await request(path, init)).text();
+  try {
+    return (text ? JSON.parse(text) : null) as T;
+  } catch {
+    return text as T;
+  }
 }
 
 export async function safeFetch<T>(path: string, fallback: T, init?: RequestInit): Promise<T> {
