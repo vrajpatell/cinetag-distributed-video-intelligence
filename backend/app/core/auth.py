@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from hmac import compare_digest
 from enum import Enum
+from hmac import compare_digest
 from typing import Annotated
 
 from fastapi import Depends, Header, HTTPException
@@ -40,12 +40,12 @@ def require_roles(*allowed: Role):
 
     def _dep(x_api_key: str | None = Header(default=None, alias="X-API-Key")) -> None:
         if not settings.authentication_required:
-            return None
+            return
         if not settings.admin_api_key and not settings.reviewer_api_key and not settings.service_api_key:
             _LOG.warning("auth_enabled_without_keys_configured")
         roles = roles_for_api_key(x_api_key)
         if roles & allowed_set:
-            return None
+            return
         auth_failures_total.inc()
         _LOG.warning("auth_denied allowed=%s", [r.value for r in allowed])
         raise HTTPException(status_code=401, detail="Unauthorized")

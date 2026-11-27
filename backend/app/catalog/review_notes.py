@@ -4,7 +4,6 @@ from app.catalog.dataset import Column, Dataset, Preset
 from app.catalog.schema import Kind
 from app.db.models import ReviewNote, VideoAsset
 
-
 NOTES = Dataset(
     key="notes",
     label="Review notes",

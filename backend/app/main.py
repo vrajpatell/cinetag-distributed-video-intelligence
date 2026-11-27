@@ -15,10 +15,10 @@ ensure_preload()
 from app.api import (  # noqa: E402
     routes_catalog,
     routes_delivery,
-    routes_notes,
     routes_health,
     routes_jobs,
     routes_metrics,
+    routes_notes,
     routes_review,
     routes_search,
     routes_tags,
@@ -26,10 +26,13 @@ from app.api import (  # noqa: E402
     routes_videos,
 )
 from app.core.auth import roles_for_api_key  # noqa: E402
-from app.observability.metrics import auth_failures_total  # noqa: E402
 from app.core.config import settings  # noqa: E402
 from app.db.session import get_engine  # noqa: E402
-from app.observability.metrics import api_request_duration_seconds, api_request_total  # noqa: E402
+from app.observability.metrics import (  # noqa: E402
+    api_request_duration_seconds,
+    api_request_total,
+    auth_failures_total,
+)
 
 request_id_ctx: ContextVar[str | None] = ContextVar("request_id", default=None)
 
@@ -139,19 +142,19 @@ if settings.otel_enabled:
             provider.add_span_processor(BatchSpanProcessor(exporter))
             trace.set_tracer_provider(provider)
             _LOG.info("otel_otlp_exporter_configured")
-        except Exception:
+        except Exception:  # noqa: BLE001 - optional telemetry must not prevent API startup
             _LOG.warning("otel_otlp_configure_failed", exc_info=True)
     try:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
         FastAPIInstrumentor.instrument_app(app)
         _LOG.info("otel_fastapi_instrumented")
-    except Exception:
+    except Exception:  # noqa: BLE001 - optional telemetry must not prevent API startup
         _LOG.warning("otel_fastapi_instrumentation_unavailable", exc_info=True)
     try:
         from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 
         SQLAlchemyInstrumentor().instrument(engine=get_engine())
         _LOG.info("otel_sqlalchemy_instrumented")
-    except Exception:
+    except Exception:  # noqa: BLE001 - optional telemetry must not prevent API startup
         _LOG.warning("otel_sqlalchemy_instrumentation_unavailable", exc_info=True)

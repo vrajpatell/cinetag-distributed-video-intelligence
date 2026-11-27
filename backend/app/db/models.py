@@ -1,11 +1,23 @@
 from datetime import datetime
-from sqlalchemy import String, Float, Integer, DateTime, ForeignKey, Text, JSON, Index, UniqueConstraint
+
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column
+
 from app.db.session import Base
 
 try:
     from pgvector.sqlalchemy import Vector
-except Exception:  # pragma: no cover - used in minimal test envs without pgvector
+except ImportError:  # pragma: no cover - used in minimal test envs without pgvector
     Vector = None
 
 _EMBEDDING_VECTOR_TYPE = Vector(1536) if Vector is not None else JSON

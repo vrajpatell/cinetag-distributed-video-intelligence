@@ -37,7 +37,7 @@ def ready(response: Response, db: Session = Depends(get_db)):
     try:
         db.execute(text('SELECT 1'))
         db_ok = True
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - every database failure must mark the instance unready
         db_error = type(exc).__name__
         logger.warning('readiness_db_check_failed error=%s', db_error)
 

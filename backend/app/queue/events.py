@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 SCHEMA_VERSION = "1.0"
@@ -18,7 +18,7 @@ def build_processing_job_event(
         "schema_version": SCHEMA_VERSION,
         "event_type": EVENT_TYPE_PROCESSING_JOB_CREATED,
         "event_id": str(uuid.uuid4()),
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "job_id": job_id,
         "source": source,
     }

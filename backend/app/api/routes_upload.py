@@ -134,7 +134,7 @@ def _assert_worker_broker_available() -> None:
         with run_pipeline.app.connection_for_write() as conn:
             conn.ensure_connection(max_retries=1)
     except Exception:
-        logger.warning("worker queue unavailable; refusing to finalize upload")
+        logger.warning("worker queue unavailable; refusing to finalize upload", exc_info=True)
         raise HTTPException(
             status_code=503,
             detail="Worker queue unavailable. Please retry shortly.",
@@ -363,7 +363,7 @@ def complete_direct_upload(
     db.refresh(job)
     try:
         publish_processing_job(job.id)
-    except Exception:
+    except Exception:  # noqa: BLE001 - the publisher logs the underlying broker error
         raise HTTPException(
             status_code=503,
             detail="Job created, but dispatch failed. Please retry shortly.",
@@ -431,7 +431,7 @@ async def upload_video(
     db.refresh(job)
     try:
         publish_processing_job(job.id)
-    except Exception:
+    except Exception:  # noqa: BLE001 - the publisher logs the underlying broker error
         raise HTTPException(
             status_code=503,
             detail="Job created, but dispatch failed. Please retry shortly.",

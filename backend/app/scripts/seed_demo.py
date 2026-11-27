@@ -6,8 +6,8 @@ from app.db.models import (
     Transcript,
     VideoAsset,
 )
-from app.ml.mock_embedding_client import MockEmbeddingClient
 from app.db.session import Base, SessionLocal, engine
+from app.ml.mock_embedding_client import MockEmbeddingClient
 
 Base.metadata.create_all(bind=engine)
 db = SessionLocal()

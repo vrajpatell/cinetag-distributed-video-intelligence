@@ -52,3 +52,10 @@ exclude = ["alembic*", "scripts*", "tests*"]
 line-length = 100
 [tool.pytest.ini_options]
 pythonpath=["app"]
+
+[tool.ruff.lint]
+extend-select = ["E402"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI inspects these declarations once while registering each route.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.File"]

@@ -24,12 +24,12 @@ from app.db.models import (
     VideoAsset,
 )
 from app.db.session import get_db
-from app.storage import get_object_store
-from app.storage.local_store import LocalStore, UnsafeStorageKey
 from app.media.urls import (
     media_fields_for_video,
     preview_storage_key,
 )
+from app.storage import get_object_store
+from app.storage.local_store import LocalStore, UnsafeStorageKey
 
 router = APIRouter(prefix="/videos")
 logger = logging.getLogger(__name__)
@@ -148,13 +148,13 @@ def list_videos(
         q = q.filter(VideoAsset.title.ilike(f"%{title_contains}%"))
     if created_after:
         try:
-            dt = datetime.fromisoformat(created_after.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(created_after)
             q = q.filter(VideoAsset.created_at >= dt)
         except ValueError:
             raise HTTPException(400, detail="invalid created_after datetime") from None
     if created_before:
         try:
-            dt = datetime.fromisoformat(created_before.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(created_before)
             q = q.filter(VideoAsset.created_at <= dt)
         except ValueError:
             raise HTTPException(400, detail="invalid created_before datetime") from None
@@ -458,7 +458,7 @@ def _local_path_for_key(storage_key: str) -> Path:
     outside the configured store, even if a malformed key reaches this point.
     """
     store = LocalStore()
-    return store._resolve_safe(storage_key)  # noqa: SLF001 (intentional reuse)
+    return store._resolve_safe(storage_key)
 
 
 @router.get("/{video_id}/stream", name="video_stream")

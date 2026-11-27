@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 def _handle_message(message) -> None:
     try:
         payload = json.loads(message.data.decode("utf-8"))
-    except Exception:
+    except (ValueError, UnicodeError):
         logger.warning("pubsub_malformed_json_acked")
         message.ack()
         pubsub_messages_total.labels(status="malformed_acked").inc()

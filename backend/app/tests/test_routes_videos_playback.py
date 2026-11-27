@@ -19,7 +19,6 @@ from app.core.config import settings
 from app.db.models import FrameSample, VideoAsset
 from app.storage.local_store import LocalStore
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -50,7 +49,7 @@ def _seed_video(
 def _write_local_object(storage_key: str, data: bytes) -> Path:
     """Write bytes into the configured LocalStore so object_exists is True."""
     store = LocalStore()
-    p: Path = store._resolve_safe(storage_key)  # noqa: SLF001
+    p: Path = store._resolve_safe(storage_key)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_bytes(data)
     return p

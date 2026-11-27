@@ -4,16 +4,16 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from app.catalog.comparison import Comparison, compare
-from app.delivery.manifest import load_manifest
 from app.catalog.dataset import Dataset
 from app.catalog.distribution import distribution
-from app.catalog.schema import DistributionQuery, DistributionResult
 from app.catalog.files import MEDIA_TYPES, encode_table
 from app.catalog.query import DATASETS, EXPORT_LIMIT, InvalidQuery, breakdown, quality, table
 from app.catalog.schema import (
     BreakdownQuery,
     BreakdownResult,
     CatalogSchema,
+    DistributionQuery,
+    DistributionResult,
     ExportQuery,
     QualityReport,
     TableQuery,
@@ -21,6 +21,7 @@ from app.catalog.schema import (
 )
 from app.core.auth import RequireViewerOrAbove
 from app.db.session import get_db
+from app.delivery.manifest import load_manifest
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
 Database = Annotated[Session, Depends(get_db)]

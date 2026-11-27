@@ -1,5 +1,9 @@
 import json
+
+from pydantic import ValidationError
+
 from app.ml.tag_schema import TagBundle
+
 
 class MockLLMClient:
     def generate(self, prompt: str) -> str:
@@ -17,6 +21,6 @@ class MockLLMClient:
 def parse_with_repair(raw: str, client: MockLLMClient) -> TagBundle:
     try:
         return TagBundle.model_validate_json(raw)
-    except Exception:
+    except ValidationError:
         repaired = client.generate("repair")
         return TagBundle.model_validate_json(repaired)

@@ -21,12 +21,11 @@ def publish_processing_job(job_id: int) -> None:
             raise ValueError(f"Unsupported queue backend: {backend}")
         queue_publish_total.labels(backend=backend, status="success").inc()
         logger.info("queue_publish_succeeded job_id=%s queue_backend=%s", job_id, backend)
-    except Exception as exc:
+    except Exception:
         queue_publish_total.labels(backend=backend, status="error").inc()
         logger.exception(
-            "queue_publish_failed job_id=%s queue_backend=%s reason=%s",
+            "queue_publish_failed job_id=%s queue_backend=%s",
             job_id,
             backend,
-            str(exc),
         )
         raise
