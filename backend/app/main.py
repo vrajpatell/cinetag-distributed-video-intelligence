@@ -12,6 +12,9 @@ from app.bootstrap import ensure_preload
 ensure_preload()
 
 from app.api import (  # noqa: E402
+    routes_catalog,
+    routes_delivery,
+    routes_notes,
     routes_health,
     routes_jobs,
     routes_metrics,
@@ -89,6 +92,9 @@ async def api_metrics_middleware(request: Request, call_next):
 
 
 app.include_router(routes_health.router)
+app.include_router(routes_catalog.router, prefix="/api")
+app.include_router(routes_delivery.router, prefix="/api")
+app.include_router(routes_notes.router, prefix="/api")
 app.include_router(routes_upload.router, prefix="/api")
 app.include_router(routes_jobs.router, prefix="/api")
 app.include_router(routes_videos.router, prefix="/api")

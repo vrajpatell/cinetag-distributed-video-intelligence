@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import String, Float, Integer, DateTime, ForeignKey, Text, JSON
+from sqlalchemy import String, Float, Integer, DateTime, ForeignKey, Text, JSON, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.session import Base
 
@@ -118,3 +118,22 @@ class AuditLog(Base):
     before_json: Mapped[dict | None] = mapped_column(JSON)
     after_json: Mapped[dict | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class ReviewNote(Base):
+    __tablename__ = "review_notes"
+    __table_args__ = (
+        UniqueConstraint("video_id", "request_id", name="uq_review_note_request"),
+        Index("ix_review_notes_video_state", "video_id", "state", "id"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    video_id: Mapped[int] = mapped_column(ForeignKey("video_assets.id"))
+    request_id: Mapped[str] = mapped_column(String(36))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    category: Mapped[str] = mapped_column(String(24))
+    state: Mapped[str] = mapped_column(String(16), default="open")
+    body: Mapped[str] = mapped_column(Text)
+    position_ms: Mapped[int | None] = mapped_column(Integer)
+    revision: Mapped[int] = mapped_column(Integer, default=1)
+    created_at: Mapped[datetime] = mapped_column(DateTime)
+    updated_at: Mapped[datetime] = mapped_column(DateTime)

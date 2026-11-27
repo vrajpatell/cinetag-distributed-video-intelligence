@@ -1,3 +1,5 @@
+import ReviewNotes from '@/components/notes/ReviewNotes';
+import DeliveryPanel from "@/components/catalog/DeliveryPanel";
 import Link from 'next/link';
 import AITagCloud from '@/components/AITagCloud';
 import JobStatusBadge from '@/components/JobStatusBadge';
@@ -151,6 +153,8 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
             </section>
           )}
 
+          {!isDemo && <ReviewNotes key={video.id} videoId={video.id} duration={video.duration_seconds} />}
+
           {relatedJobs.length ? (
             <div className="space-y-3">
               <div className="text-[11px] uppercase tracking-wider text-white/50">Processing job history</div>
@@ -160,6 +164,8 @@ export default async function VideoDetailPage({ params }: { params: Promise<{ id
         </div>
 
         <aside className="space-y-4">
+          {!isDemo && <DeliveryPanel videoId={video.id} />}
+          {!isDemo && <Link className="btn-secondary" href={`/catalog/compare?left=${video.id}`}>Compare this video</Link>}
           <div className="panel p-4">
             <div className="text-[11px] uppercase tracking-wider text-white/50">Asset metadata</div>
             <dl className="mt-2 grid grid-cols-2 gap-2 text-[12px]">

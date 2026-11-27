@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import {
   Activity,
   Clapperboard,
+  Library,
   ExternalLink,
   Menu,
   Search,
@@ -26,6 +27,7 @@ const LINKS = [
   { href: '/jobs', label: 'Jobs', icon: Workflow },
   { href: '/review', label: 'Review', icon: ClipboardCheck },
   { href: '/search', label: 'Search', icon: Search },
+  { href: '/catalog', label: 'Catalog', icon: Library },
 ] as const;
 
 export default function TopNav() {

@@ -47,6 +47,8 @@ The codebase is suitable as:
 
 ## 2. What the platform does
 
+The [catalog workspace](docs/catalog-workspace.md) supports filtered reports, video comparisons, editorial notes, quality checks, and metadata exports.
+
 The platform combines four capability layers that mirror how large catalogs are operated in practice.
 
 ### Ingestion and storage
