@@ -31,17 +31,17 @@ def test_list_videos_includes_poster_and_preview_fields(client, db_session):
 
     store = LocalStore()
     frame_key = f"frames/{v.id}/frame_001.jpg"
-    p: Path = store._resolve_safe(frame_key)  # noqa: SLF001
+    p: Path = store._resolve_safe(frame_key)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_bytes(b"\xff\xd8\xff\xd9")
 
     preview_key = f"previews/{v.id}/preview.mp4"
-    pp: Path = store._resolve_safe(preview_key)  # noqa: SLF001
+    pp: Path = store._resolve_safe(preview_key)
     pp.parent.mkdir(parents=True, exist_ok=True)
     pp.write_bytes(b"fake-mp4")
 
     orig_key = v.storage_key
-    op: Path = store._resolve_safe(orig_key)  # noqa: SLF001
+    op: Path = store._resolve_safe(orig_key)
     op.parent.mkdir(parents=True, exist_ok=True)
     op.write_bytes(b"fake-video")
 
@@ -70,7 +70,7 @@ def test_preview_endpoint_returns_signed_local_url(client, db_session):
 
     store = LocalStore()
     preview_key = f"previews/{v.id}/preview.mp4"
-    pp: Path = store._resolve_safe(preview_key)  # noqa: SLF001
+    pp: Path = store._resolve_safe(preview_key)
     pp.parent.mkdir(parents=True, exist_ok=True)
     pp.write_bytes(b"fake-mp4")
 

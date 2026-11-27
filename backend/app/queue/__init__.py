@@ -31,4 +31,4 @@ def _load_stdlib_queue_symbols() -> None:
 
 _load_stdlib_queue_symbols()
 
-__all__ = ["publish_processing_job", "Queue", "LifoQueue", "PriorityQueue", "SimpleQueue", "Empty", "Full"]
+__all__ = ["Empty", "Full", "LifoQueue", "PriorityQueue", "Queue", "SimpleQueue", "publish_processing_job"]

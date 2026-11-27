@@ -31,13 +31,13 @@ def list_review_items(
         q = q.filter(GeneratedTag.video_id == video_id)
     if created_after:
         try:
-            dt = datetime.fromisoformat(created_after.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(created_after)
             q = q.filter(GeneratedTag.created_at >= dt)
         except ValueError:
             raise HTTPException(400, detail="invalid created_after datetime") from None
     if created_before:
         try:
-            dt = datetime.fromisoformat(created_before.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(created_before)
             q = q.filter(GeneratedTag.created_at <= dt)
         except ValueError:
             raise HTTPException(400, detail="invalid created_before datetime") from None

@@ -79,13 +79,13 @@ def list_jobs(
         q = q.filter(ProcessingJob.video_id == video_id)
     if created_after:
         try:
-            dt = datetime.fromisoformat(created_after.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(created_after)
             q = q.filter(ProcessingJob.created_at >= dt)
         except ValueError:
             raise HTTPException(400, detail="invalid created_after datetime") from None
     if created_before:
         try:
-            dt = datetime.fromisoformat(created_before.replace("Z", "+00:00"))
+            dt = datetime.fromisoformat(created_before)
             q = q.filter(ProcessingJob.created_at <= dt)
         except ValueError:
             raise HTTPException(400, detail="invalid created_before datetime") from None
@@ -182,6 +182,7 @@ def retry_job(
         logger.warning(
             'retry_job_publish_unavailable job_id=%s; row reset but task not enqueued',
             job_id,
+            exc_info=True,
         )
         raise HTTPException(
             status_code=503,

@@ -11,8 +11,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from types import SimpleNamespace
-from app.db.models import EmbeddingRecord, GeneratedTag, VideoAsset
+
 from app.api.routes_search import Query, semantic
+from app.db.models import EmbeddingRecord, GeneratedTag, VideoAsset
 
 
 def _seed_video_with_embedding(

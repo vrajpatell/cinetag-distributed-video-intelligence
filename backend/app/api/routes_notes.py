@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.auth import RequireReviewerOrAdmin, RequireViewerOrAbove
 from app.db.session import get_db
 from app.notes import service
-from app.notes.schema import CreateNote, EditNote, Note, NotePage, NoteHistory, State
+from app.notes.schema import CreateNote, EditNote, Note, NoteHistory, NotePage, State
 
 router = APIRouter(prefix="/videos/{video_id}/notes", tags=["review notes"])
 Database = Annotated[Session, Depends(get_db)]

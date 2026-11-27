@@ -35,7 +35,7 @@ def publish_pubsub_job(job_id: int) -> None:
                 attempt + 1,
             )
             return
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - propagate the final publish failure after retries
             last_exc = exc
             logger.warning(
                 "pubsub_publish_retry job_id=%s attempt=%s error=%s",

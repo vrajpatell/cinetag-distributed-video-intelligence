@@ -298,18 +298,19 @@ def test_client_validates_json_responses():
     with CatalogClient(
         "https://server.test",
         transport=httpx.MockTransport(lambda req: httpx.Response(200, text="not JSON")),
-    ) as client:
-        with pytest.raises(CatalogError, match="Unexpected response"):
-            client.schema()
+    ) as client, pytest.raises(CatalogError, match="Unexpected response"):
+        client.schema()
 
 
 def test_transport_error_display():
     def offline(request):
         raise httpx.ConnectError("Offline", request=request)
 
-    with CatalogClient("https://server.test", transport=httpx.MockTransport(offline)) as client:
-        with pytest.raises(CatalogError, match="Could not reach"):
-            client.quality()
+    with (
+        CatalogClient("https://server.test", transport=httpx.MockTransport(offline)) as client,
+        pytest.raises(CatalogError, match="Could not reach"),
+    ):
+        client.quality()
 
 
 def test_failed_write_removes_temporary_file(tmp_path, monkeypatch):

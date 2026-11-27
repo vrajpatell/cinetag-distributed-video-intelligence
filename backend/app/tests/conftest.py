@@ -9,7 +9,7 @@ be exercised end-to-end without network or credentials.
 from __future__ import annotations
 
 import os
-from typing import Generator
+from collections.abc import Generator
 
 # These env vars must be set BEFORE app modules are imported so SQLAlchemy and
 # pydantic-settings pick them up cleanly. ``setdefault`` keeps any explicit
@@ -20,16 +20,16 @@ os.environ.setdefault("CORS_ALLOWED_ORIGINS", "http://localhost:3000")
 os.environ.setdefault("MAX_UPLOAD_SIZE_MB", "1024")
 os.environ.setdefault("AUTH_ENABLED", "false")
 
-import pytest  # noqa: E402
-from fastapi.testclient import TestClient  # noqa: E402
-from sqlalchemy import create_engine  # noqa: E402
-from sqlalchemy.orm import sessionmaker  # noqa: E402
-from sqlalchemy.pool import StaticPool  # noqa: E402
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
-from app.core.config import get_settings  # noqa: E402
-from app.db import models  # noqa: E402,F401  (registers tables on Base.metadata)
-from app.db.session import Base, get_db  # noqa: E402
-from app.main import app  # noqa: E402
+from app.core.config import get_settings
+from app.db import models  # noqa: F401  (registers tables on Base.metadata)
+from app.db.session import Base, get_db
+from app.main import app
 
 
 @pytest.fixture(autouse=True)

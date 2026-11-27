@@ -7,10 +7,12 @@ import shutil
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 from celery import Celery
 from sqlalchemy.orm import Session
@@ -27,6 +29,7 @@ from app.db.models import (
     VideoAsset,
 )
 from app.db.session import SessionLocal
+from app.media.urls import preview_storage_key
 from app.ml.providers import describe_frame, embed_text, generate_tag_bundle, transcribe_audio
 from app.ml.tag_schema import TagBundle
 from app.observability.metrics import (
@@ -38,7 +41,6 @@ from app.observability.metrics import (
     worker_stage_failures_total,
 )
 from app.storage import get_object_store
-from app.media.urls import preview_storage_key
 
 celery = Celery(
     __name__,
@@ -110,7 +112,7 @@ STAGE_INDEX = {stage: index for index, stage in enumerate(PIPELINE_STAGES)}
 
 
 def _now() -> datetime:
-    return datetime.utcnow()
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _delete_existing_outputs(db: Session, video_id: int) -> None:
@@ -227,7 +229,7 @@ def _local_original_path(video: VideoAsset) -> str | None:
         return None
     try:
         path = store._path(video.storage_key)  # LocalStore helper.
-    except Exception:
+    except (OSError, ValueError, RuntimeError):
         return None
     return str(path) if Path(path).exists() else None
 
@@ -576,7 +578,7 @@ def _scene_segmentation(db: Session, video: VideoAsset, ctx: PipelineContext) ->
         timestamps = _sample_timestamps(video.duration_seconds)
     duration = float(video.duration_seconds or 60.0)
     boundaries = sorted({0.0, *[ts for ts in timestamps if 0 < ts < duration], duration})
-    for index, (start, end) in enumerate(zip(boundaries, boundaries[1:]), start=1):
+    for index, (start, end) in enumerate(pairwise(boundaries), start=1):
         db.add(
             SceneSegment(
                 video_id=video.id,

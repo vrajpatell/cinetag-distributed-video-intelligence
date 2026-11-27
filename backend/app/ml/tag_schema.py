@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field
 
+
 class AgeSuitability(BaseModel):
     suggested_rating: str
     rationale: str

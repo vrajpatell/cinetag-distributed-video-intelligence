@@ -7,7 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db.models import AuditLog, ReviewNote, VideoAsset
-from app.notes.schema import CreateNote, EditNote, Note, NotePage, NoteHistory, RevisionEvent, State
+from app.notes.schema import CreateNote, EditNote, Note, NoteHistory, NotePage, RevisionEvent, State
 
 
 def get_asset(db: Session, video_id: int):
@@ -18,9 +18,13 @@ def get_asset(db: Session, video_id: int):
 
 
 def check_position(video, position):
-    if position is not None and video.duration_seconds is not None and video.duration_seconds > 0:
-        if position > round(video.duration_seconds * 1000):
-            raise HTTPException(422, "Note position exceeds the video duration")
+    if (
+        position is not None
+        and video.duration_seconds is not None
+        and video.duration_seconds > 0
+        and position > round(video.duration_seconds * 1000)
+    ):
+        raise HTTPException(422, "Note position exceeds the video duration")
 
 
 def timestamp():

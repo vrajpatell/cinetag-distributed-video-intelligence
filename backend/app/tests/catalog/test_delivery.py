@@ -108,7 +108,7 @@ def test_preview_lists_available_sidecars(client, catalog_db):
 def test_partial_delivery_is_explicit(client, catalog_db):
     preview = client.get("/api/videos/12/delivery").json()
     files = {item["format"]: item for item in preview["files"]}
-    assert set(key for key, item in files.items() if item["available"]) == {"manifest", "bundle"}
+    assert {key for key, item in files.items() if item["available"]} == {"manifest", "bundle"}
     assert preview["notices"][0]["code"] == "invalid_interval"
     assert files["tags"]["reason"] == "No approved tags."
     for key in ("tags", "ffmetadata", "chapters", "transcript", "cue-sheet"):
