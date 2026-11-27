@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from functools import lru_cache
 from typing import Literal
 
@@ -88,10 +89,20 @@ class Settings(BaseSettings):
     cors_allowed_origin_regex: str | None = None
     max_upload_size_mb: int = 512
 
-    auth_enabled: bool = Field(default=False, validation_alias="AUTH_ENABLED")
+    auth_enabled: bool = Field(default=True, validation_alias="AUTH_ENABLED")
     admin_api_key: str | None = Field(default=None, validation_alias="ADMIN_API_KEY")
     reviewer_api_key: str | None = Field(default=None, validation_alias="REVIEWER_API_KEY")
     service_api_key: str | None = Field(default=None, validation_alias="SERVICE_API_KEY")
+
+    @property
+    def authentication_required(self) -> bool:
+        """Only an explicitly configured local environment may skip authentication."""
+        return (
+            self.auth_enabled
+            or self.app_env == "gcp"
+            or bool(os.getenv("K_SERVICE"))
+            or os.getenv("RENDER", "").lower() == "true"
+        )
 
     @model_validator(mode="after")
     def _warn_gcp_docker_db_host(self) -> Settings:

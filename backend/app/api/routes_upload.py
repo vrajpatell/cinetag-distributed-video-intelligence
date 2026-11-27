@@ -244,7 +244,7 @@ _LOCAL_PUT_KEY_PREFIXES = ("originals/",)
 
 
 @router.put("/uploads/direct/{storage_key:path}", name="local_direct_put")
-async def local_direct_put(storage_key: str, request: Request) -> Response:
+async def local_direct_put(storage_key: str, request: Request, _auth: RequireAdminOrService) -> Response:
     """Local-development direct-PUT target.
 
     Mimics the contract of a GCS signed-URL upload so the same client code

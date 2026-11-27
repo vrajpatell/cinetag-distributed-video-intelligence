@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from hmac import compare_digest
 from enum import Enum
 from typing import Annotated
 
@@ -21,15 +22,15 @@ class Role(str, Enum):
     service = "service"
 
 
-def _roles_for_api_key(api_key: str | None) -> set[Role]:
+def roles_for_api_key(api_key: str | None) -> set[Role]:
     if not api_key:
         return set()
     roles: set[Role] = set()
-    if settings.admin_api_key and api_key == settings.admin_api_key:
+    if settings.admin_api_key and compare_digest(api_key.encode(), settings.admin_api_key.encode()):
         roles.update({Role.admin, Role.reviewer, Role.viewer})
-    if settings.reviewer_api_key and api_key == settings.reviewer_api_key:
+    if settings.reviewer_api_key and compare_digest(api_key.encode(), settings.reviewer_api_key.encode()):
         roles.update({Role.reviewer, Role.viewer})
-    if settings.service_api_key and api_key == settings.service_api_key:
+    if settings.service_api_key and compare_digest(api_key.encode(), settings.service_api_key.encode()):
         roles.add(Role.service)
     return roles
 
@@ -38,11 +39,11 @@ def require_roles(*allowed: Role):
     allowed_set = set(allowed)
 
     def _dep(x_api_key: str | None = Header(default=None, alias="X-API-Key")) -> None:
-        if not settings.auth_enabled:
+        if not settings.authentication_required:
             return None
         if not settings.admin_api_key and not settings.reviewer_api_key and not settings.service_api_key:
             _LOG.warning("auth_enabled_without_keys_configured")
-        roles = _roles_for_api_key(x_api_key)
+        roles = roles_for_api_key(x_api_key)
         if roles & allowed_set:
             return None
         auth_failures_total.inc()

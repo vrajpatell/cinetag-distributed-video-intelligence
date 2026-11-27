@@ -26,9 +26,18 @@ from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
+from app.core.config import get_settings  # noqa: E402
 from app.db import models  # noqa: E402,F401  (registers tables on Base.metadata)
 from app.db.session import Base, get_db  # noqa: E402
 from app.main import app  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def fresh_settings():
+    """Environment changes in one test must not affect authentication in another."""
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture()

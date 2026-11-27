@@ -26,17 +26,6 @@ function warnNoApiBase(context: string) {
   );
 }
 
-if (IS_BROWSER && IS_PROD && !API_BASE_URL) {
-  // Spec: "Throw clear error if missing in production."
-  // We throw on the client at module load so misconfiguration is loud and
-  // fails fast — before any user data is sent over a relative URL that
-  // would otherwise hit the frontend's own origin.
-  throw new Error(
-    '[CineTag] NEXT_PUBLIC_API_BASE_URL is required in production. ' +
-      'Set it in the Vercel project environment or pass it as a frontend Docker build arg.',
-  );
-}
-
 export class ApiError extends Error {
   status?: number;
   endpoint: string;
@@ -53,22 +42,12 @@ export class ApiError extends Error {
 function buildUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
   if (!API_BASE_URL) {
+    if (IS_PROD) throw new ApiError('Live API access is unavailable on this site.', {endpoint: path});
     warnNoApiBase(IS_BROWSER ? 'browser' : 'server');
     return path.startsWith('/') ? path : `/${path}`;
   }
   const p = path.startsWith('/') ? path : `/${path}`;
   return `${API_BASE_URL}${p}`;
-}
-
-const RAW_API_KEY =
-  process.env.NEXT_PUBLIC_API_KEY?.trim() ||
-  process.env.NEXT_PUBLIC_REVIEWER_API_KEY?.trim() ||
-  process.env.NEXT_PUBLIC_ADMIN_API_KEY?.trim() ||
-  '';
-
-function authHeaders(): Record<string, string> {
-  if (!RAW_API_KEY) return {};
-  return { 'X-API-Key': RAW_API_KEY };
 }
 
 async function request(path: string, init?: RequestInit): Promise<Response> {
@@ -79,7 +58,6 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
       ...init,
       headers: {
         'Content-Type': 'application/json',
-        ...authHeaders(),
         ...(init?.headers || {}),
       },
       cache: init?.cache ?? 'no-store',
